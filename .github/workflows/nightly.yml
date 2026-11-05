@@ -1,0 +1,57 @@
+name: Nightly booking race
+
+# Runs the concurrent-hold proof 50 times in a row against PostgreSQL 17. A flaky pass in
+# CI would hide a real race; this makes one show up.
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  race:
+    name: 50 x concurrent holds on the last seat
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgres://bookwise_app:app_ci_pw@localhost:5432/bookwise_test
+      DATABASE_MIGRATION_URL: postgres://bookwise_owner:owner_ci_pw@localhost:5432/bookwise_test
+      REDIS_URL: redis://localhost:6379/1
+      BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
+      REQUIRE_EMAIL_VERIFICATION: "true"
+      MAIL_TRANSPORT: memory
+      LOG_LEVEL: silent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci
+      - name: Database
+        env: { PGPASSWORD: postgres }
+        run: |
+          psql -h localhost -U postgres -v owner_password=owner_ci_pw -v app_password=app_ci_pw -f scripts/db/create-roles.sql
+          psql -h localhost -U postgres -v dbname=bookwise_test -f scripts/db/create-database.sql
+          npm run db:migrate
+      - name: Run the race 50 times
+        run: |
+          for i in $(seq 1 50); do
+            echo "::group::run $i"
+            npx vitest run --project integration tests/integration/booking-concurrency.test.ts || { echo "::error::run $i failed"; exit 1; }
+            echo "::endgroup::"
+          done
