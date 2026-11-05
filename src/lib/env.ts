@@ -18,6 +18,11 @@ export const ServerEnvSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   REQUIRE_EMAIL_VERIFICATION: bool.default(true),
+  // memory: kept in-process (tests); log: written to the log (no delivery);
+  // mailpit: delivered to a local Mailpit inbox over its HTTP API. Resend arrives in Phase 8.
+  MAIL_TRANSPORT: z.enum(["memory", "log", "mailpit"]).default("log"),
+  MAILPIT_URL: z.url().default("http://localhost:8025"),
+  MAIL_FROM: z.string().min(3).default("BookWise <no-reply@bookwise.local>"),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

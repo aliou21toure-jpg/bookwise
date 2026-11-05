@@ -80,6 +80,7 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
       const appError = toAppError(err);
       status = appError.status;
       if (status >= 500) log.error({ err }, "unhandled error");
+      else if (pgErrorCode(err) === "42501") log.warn({ err }, "database refused a change (RLS or guard trigger)");
       const body: ErrorBody = {
         error: {
           code: appError.code,
@@ -118,8 +119,25 @@ function assertSameOrigin(request: Request, url: URL): void {
   if (!allowed.has(origin)) throw new AppError("CROSS_ORIGIN_BLOCKED", "Cross-origin request blocked");
 }
 
+/** PostgreSQL SQLSTATE of an error, unwrapping Drizzle's DrizzleQueryError (`cause`). */
+export function pgErrorCode(err: unknown): string | undefined {
+  for (let e: unknown = err, depth = 0; e && depth < 3; e = (e as { cause?: unknown }).cause, depth++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return undefined;
+}
+
 export function toAppError(err: unknown): AppError {
   if (err instanceof AppError) return err;
+  switch (pgErrorCode(err)) {
+    // Row-level security or a guard trigger refused the change. Services check permissions
+    // first, so reaching this means the database caught something the code missed.
+    case "42501":
+      return new AppError("FORBIDDEN", "You do not have permission to do that.");
+    case "23505":
+      return new AppError("CONFLICT", "That conflicts with an existing record.");
+  }
   if (err instanceof ZodError) {
     return new AppError(
       "VALIDATION_FAILED",

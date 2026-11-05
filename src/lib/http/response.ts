@@ -24,6 +24,14 @@ const BASE_HEADERS = {
 export function jsonResponse(body: unknown, status: number, requestId: string, extra?: HeadersInit): Response {
   const headers = new Headers(BASE_HEADERS);
   headers.set("X-Request-Id", requestId);
-  if (extra) new Headers(extra).forEach((v, k) => headers.set(k, v));
+  if (extra) {
+    const source = new Headers(extra);
+    // Several cookies may be set at once (session token and its signature cache):
+    // Set-Cookie must be appended one by one, never merged or overwritten.
+    for (const cookie of source.getSetCookie()) headers.append("Set-Cookie", cookie);
+    source.forEach((v, k) => {
+      if (k !== "set-cookie") headers.set(k, v);
+    });
+  }
   return new Response(status === 204 ? null : JSON.stringify(body), { status, headers });
 }

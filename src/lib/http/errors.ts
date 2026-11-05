@@ -7,11 +7,17 @@ export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   INVALID_JSON: 400,
   UNAUTHENTICATED: 401,
+  INVALID_CREDENTIALS: 401,
   FORBIDDEN: 403,
+  EMAIL_NOT_VERIFIED: 403,
+  ACCOUNT_SUSPENDED: 403,
+  ORGANIZATION_SUSPENDED: 403,
   CROSS_ORIGIN_BLOCKED: 403,
   NOT_FOUND: 404,
   METHOD_NOT_ALLOWED: 405,
   CONFLICT: 409,
+  EMAIL_TAKEN: 409,
+  LAST_OWNER: 409,
   INVALID_TRANSITION: 409,
   UNPROCESSABLE: 422,
   RATE_LIMITED: 429,
@@ -41,3 +47,5 @@ export class AppError extends Error {
 }
 
 export const notFound = (what = "Resource") => new AppError("NOT_FOUND", `${what} not found`);
+
+export const forbidden = (message = "You do not have permission to do that.") => new AppError("FORBIDDEN", message);

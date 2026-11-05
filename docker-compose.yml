@@ -9,6 +9,8 @@ x-app-env: &app-env
   REDIS_URL: redis://redis:6379
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-only-secret-change-me-0123456789abcdef}
   REQUIRE_EMAIL_VERIFICATION: "true"
+  MAIL_TRANSPORT: mailpit
+  MAILPIT_URL: http://mailpit:8025
   LOG_LEVEL: info
 
 services:
