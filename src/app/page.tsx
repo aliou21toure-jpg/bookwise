@@ -43,15 +43,15 @@ export default function HomePage() {
           reservations in one place.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button size="lg" disabled aria-describedby="coming-soon">
-            Browse services
+          <Button size="lg" asChild>
+            <Link href="/listings">Browse services</Link>
           </Button>
           <Button size="lg" variant="outline" asChild>
             <Link href="/sign-up?type=provider">List your business</Link>
           </Button>
         </div>
         <p id="coming-soon" className="text-sm text-muted-foreground">
-          Browsing and booking open soon. Providers can already create an account and set up their business.
+          Browse listings and live availability today. Online booking opens in the next release.
         </p>
       </section>
 
