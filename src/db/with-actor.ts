@@ -26,3 +26,20 @@ export function withActor<T>(actor: Actor, fn: (tx: Tx) => Promise<T>): Promise<
     return fn(tx);
   });
 }
+
+/**
+ * Run `fn` inside the current transaction with the trusted `system` context, then restore
+ * the caller's role. Used for the few operations that touch rows the caller does not own:
+ * slot capacity, and releasing other customers' expired holds under the slot lock.
+ * Keep the elevated section as small as possible.
+ */
+export async function elevated<T>(tx: Tx, fn: () => Promise<T>): Promise<T> {
+  const { rows } = await tx.execute<{ role: string | null }>(sql`select current_setting('app.role', true) as role`);
+  const previous = rows[0]?.role ?? "";
+  await tx.execute(sql`select set_config('app.role', 'system', true)`);
+  try {
+    return await fn();
+  } finally {
+    await tx.execute(sql`select set_config('app.role', ${previous}, true)`);
+  }
+}
