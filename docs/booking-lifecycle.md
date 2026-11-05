@@ -26,6 +26,10 @@ model, planned in [database-design.md §8](database-design.md#8-accommodation-la
 stateDiagram-v2
     [*] --> PENDING_PAYMENT: hold created (capacity reserved, expires in 10 min)
 
+    PENDING_PAYMENT --> CONFIRMED: free checkout (price 0, instant-book service)
+    PENDING_PAYMENT --> AWAITING_APPROVAL: free checkout (price 0, approval service)
+    AWAITING_APPROVAL --> CANCELLED: customer withdraws the request
+
     PENDING_PAYMENT --> CONFIRMED: verified webhook payment_intent.succeeded (instant-book service)
     PENDING_PAYMENT --> AWAITING_APPROVAL: verified webhook amount_capturable_updated (approval service)
     PENDING_PAYMENT --> EXPIRED: hold expired (job, sweeper, or next hold on slot)
@@ -81,6 +85,7 @@ actor's role and organization membership.
 | From | Event | Who | Guard | To | Side effects (same transaction unless noted) |
 |---|---|---|---|---|---|
 | — | `HOLD_CREATED` | Customer | Slot locked, `capacity - reserved >= qty`, service published, provider active | `PENDING_PAYMENT` | `reserved_count += qty`; hold `expires_at = now() + 10 min`; enqueue expiry job after commit |
+| `PENDING_PAYMENT` | `FREE_CHECKOUT` | Owner customer | Price is 0; hold not expired | `CONFIRMED`, or `AWAITING_APPROVAL` for approval services | Hold `converted`; approval deadline = min(now + 48 h, start) |
 | `PENDING_PAYMENT` | `PAYMENT_SUCCEEDED` | Stripe (verified) | Hold not expired; amount and currency match booking | `CONFIRMED` | Hold marked `converted`; payment `succeeded`; enqueue confirmation emails |
 | `PENDING_PAYMENT` | `PAYMENT_AUTHORIZED` | Stripe (verified) | Service requires approval; hold not expired | `AWAITING_APPROVAL` | Hold `expires_at` extended to approval deadline (48 h); notify provider |
 | `PENDING_PAYMENT` | `PAYMENT_FAILED` | Stripe (verified) | — | `PENDING_PAYMENT` (unchanged) | Record failure; customer may retry with the same PaymentIntent until the hold expires |
@@ -88,6 +93,7 @@ actor's role and organization membership.
 | `PENDING_PAYMENT` | `CUSTOMER_CANCEL` | Owner customer | — | `CANCELLED` | `reserved_count -= qty`; cancel PaymentIntent |
 | `AWAITING_APPROVAL` | `PROVIDER_APPROVE` | Member of the listing's organization | Before deadline | `CONFIRMED` (after capture webhook) | Capture PaymentIntent; confirmation follows the `PAYMENT_SUCCEEDED` webhook |
 | `AWAITING_APPROVAL` | `PROVIDER_REJECT` / `APPROVAL_TIMEOUT` | Provider / System | — | `CANCELLED` | `reserved_count -= qty`; void authorization; notify customer |
+| `AWAITING_APPROVAL` | `CUSTOMER_CANCEL` | Owner customer | — | `CANCELLED` | `reserved_count -= qty`; void authorization |
 | `CONFIRMED` | `CUSTOMER_CANCEL` | Owner customer | `starts_at - now() >= service.cancellation_window` (default 24 h) | `CANCELLED` | `reserved_count -= qty`; create refund (full); notify provider |
 | `CONFIRMED` | `PROVIDER_CANCEL` / `ADMIN_CANCEL` | Org member / Admin | Before `starts_at` | `CANCELLED` | Same as above, always full refund |
 | `CONFIRMED` | `COMPLETE` | Org member, or System | `now() >= ends_at` | `COMPLETED` | Customer becomes eligible to review |
@@ -96,7 +102,15 @@ actor's role and organization membership.
 | `EXPIRED` | `PAYMENT_SUCCEEDED` | Stripe (verified) | See §5 | `CONFIRMED` or `REFUNDED` | See §5 |
 
 Anything not in this table returns `409 INVALID_TRANSITION` and changes nothing.
-Unit tests enumerate every `(state, event)` pair to prove that.
+Unit tests enumerate every `(state, event, actor)` combination (392) to prove that.
+
+**Implemented in Phase 5.** `src/modules/bookings/state-machine.ts` holds the table above. A
+database trigger (`guard_booking_update`, migration 0007) repeats it independently: the same
+allowed status pairs (a unit test checks the two lists are identical), only the system
+context may confirm a paid booking or set `EXPIRED`/`REFUNDED`, customers cannot cancel a
+confirmed booking inside the window, and price, quantity, time and owner can never change
+after creation. Prices are copied from the service by an insert trigger, whatever the caller
+sends. Payment effects (capture, void, refund) are applied from Phase 6.
 
 ---
 

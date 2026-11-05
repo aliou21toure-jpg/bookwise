@@ -5,7 +5,7 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phase 4 of 10 complete (listings, availability, image uploads and search).**
+> **Status: Phase 5 of 10 complete (the booking engine).** Card payments arrive in Phase 6.
 > Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
 
 ## What works today
@@ -23,6 +23,14 @@ automated test suite.
 - Visitors search by words, type, city and price, sort and page through results, and see
   the next open times, computed in the provider's time zone and correct across daylight
   saving changes.
+- Customers pick a time and it is held for 10 minutes. Free bookings confirm at once (or
+  wait for the provider's approval); paid ones wait for card payment (Phase 6). Customers
+  cancel inside the provider's policy; providers approve, reject, cancel and complete.
+- **No overselling, proven:** 25 customers request the last seat at the same moment and
+  exactly one gets it. A nightly workflow runs that test 50 times in a row.
+- Every request that creates something takes an `Idempotency-Key`, so retries never book
+  twice. Unpaid holds expire through a delayed job, a one-minute sweeper, and inside the next
+  booking's transaction, so the worker being down never blocks a seat.
 - PostgreSQL row-level security and guard triggers repeat every rule, so the database still
   protects tenants if application code forgets a check.
 
@@ -49,6 +57,11 @@ automated test suite.
 | `GET`, `POST /api/v1/unavailable-periods` · `DELETE /api/v1/unavailable-periods/:id` | Organization members |
 | `GET /api/v1/organizations/:id/listings` | Organization members |
 | `PATCH /api/v1/admin/listings/:id/status` | Admins |
+| `POST /api/v1/bookings/holds` (Idempotency-Key) | Signed-in customers |
+| `POST /api/v1/bookings` (checkout, Idempotency-Key) · `GET /api/v1/bookings` · `GET /api/v1/bookings/:id` | Customer, provider members, admins |
+| `POST /api/v1/bookings/:id/cancel` | Customer (inside policy), provider or admin (with a reason) |
+| `POST /api/v1/bookings/:id/approve` · `/reject` · `/complete` | Provider members |
+| `GET /api/v1/admin/bookings` | Admins |
 
 Create the first administrator from the command line (there is no API for it):
 `npm run admin:create -- --email you@example.com` (the account must have confirmed its email).

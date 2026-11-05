@@ -243,7 +243,12 @@ Why this is safe:
 - The enqueue happens after `COMMIT`. If Redis is down, the periodic sweeper (§7) still
   expires the hold, and the next hold on that slot releases it anyway.
 
-**Proof required in Phase 5:** an integration test fires at least 20 concurrent hold
+**Idempotency details (as built).** The key row is inserted in the same transaction as the
+booking, so a concurrent request with the same key waits on the primary key and then replays
+the stored response. Only successful responses are stored: if the request fails (for example
+`409 SLOT_UNAVAILABLE`), its claim rolls back and a retry is evaluated afresh.
+
+**Proof (Phase 5, passing):** an integration test fires at least 20 concurrent hold
 requests at a slot with 1 remaining seat (real PostgreSQL, separate connections) and asserts
 exactly one `201`, nineteen `409`, `reserved_count = capacity`, and no negative values.
 
