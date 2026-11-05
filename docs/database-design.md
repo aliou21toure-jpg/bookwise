@@ -82,14 +82,14 @@ Only the important columns are listed; every table also has `created_at` / `upda
 | `listings` | `id`, `organization_id`, `category` (`service` \| `activity` \| `accommodation`), `title`, `description`, `city`, `status` (`draft` \| `published` \| `under_review` \| `rejected`), `archived_at` | Full-text `tsvector` generated column + GIN index for search |
 | `listing_images` | `id`, `organization_id`, `listing_id`, `storage_key`, `content_type`, `bytes`, `width`, `height`, `position` | `content_type IN ('image/jpeg','image/png','image/webp')`, `bytes <= 5 MB` |
 | `services` | `id`, `organization_id`, `listing_id`, `name`, `duration_minutes`, `price_minor`, `currency`, `pricing` (`per_booking` \| `per_participant`), `capacity`, `max_per_booking`, `requires_approval`, `cancellation_window_hours`, `archived_at` | `price_minor >= 0`, `capacity >= 1`, `duration_minutes BETWEEN 5 AND 1440` |
-| `resources` | `id`, `organization_id`, `name`, `kind` (`staff` \| `room` \| `equipment`) | Optional: a service can be tied to a specific practitioner |
+| `resources` | `id`, `organization_id`, `name`, `kind` (`staff` \| `room` \| `equipment`) | **Deferred** (not in the MVP schema): capacity is per service; per-practitioner calendars come later |
 
 ### 3.4 Availability and inventory
 
 | Table | Key columns | Constraints |
 |---|---|---|
-| `availability_rules` | `id`, `organization_id`, `service_id`, `resource_id` (nullable), `weekday` (0–6), `start_local` (`time`), `end_local` (`time`), `slot_interval_minutes`, `valid_from` (`date`), `valid_until` (`date`, nullable) | `end_local > start_local`; times are in the organization's time zone |
-| `unavailable_periods` | `id`, `organization_id`, `service_id` (nullable = whole organization), `starts_at`, `ends_at`, `reason` | `ends_at > starts_at`; `EXCLUDE USING gist` prevents overlapping periods for the same scope |
+| `availability_rules` | `id`, `organization_id`, `service_id`, `weekday` (0–6), `start_local` (`time`), `end_local` (`time`), `slot_interval_minutes`, `valid_from` (`date`), `valid_until` (`date`, nullable) | `end_local > start_local`; times are in the organization's time zone |
+| `unavailable_periods` | `id`, `organization_id`, `service_id` (nullable = whole organization), `starts_at`, `ends_at`, `reason` | `ends_at > starts_at`. Overlapping closures are allowed and simply combine (Phase 4 change: an `EXCLUDE` constraint would only have made providers delete one closure to add another, and needs the `btree_gist` extension). Reasons are private: the public reads ranges through `service_blocked_ranges()` |
 | `availability_slots` | `id`, `organization_id`, `service_id`, `starts_at`, `ends_at`, `capacity`, `reserved_count`, `status` (`open` \| `blocked`) | **`UNIQUE (service_id, starts_at)`**, **`CHECK (reserved_count >= 0 AND reserved_count <= capacity)`** |
 
 ### 3.5 Bookings
@@ -163,6 +163,12 @@ RLS is enabled (and `FORCE ROW LEVEL SECURITY`) on every table that carries
 `SECURITY DEFINER` membership helpers must read them unfiltered
 ([ADR-010](adr/010-rls-helpers-and-force-exceptions.md)). The application role is subject to
 RLS on every table either way.
+
+Phase 4 (`0005_catalogue_rls.sql`) adds forced RLS on listings, images, services, rules,
+closures and slots. Child rows reference parents with composite foreign keys
+`(parent_id, organization_id)`, so a row can never point at another organization's listing
+or service. Note for writers of service code: under RLS, `SELECT … FOR UPDATE` also applies
+the table's UPDATE policy, so check access before taking row locks.
 
 Implemented in Phase 3 (`0003_identity_rls.sql`): helpers `app_user_id()`, `app_role()`,
 `app_is_privileged()`, `app_is_member()`, `app_is_org_owner()`, `app_org_is_active()`,

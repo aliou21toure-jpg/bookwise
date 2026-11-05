@@ -122,8 +122,12 @@ assignment fails with `400`.
    `Content-Type: image/webp` and `Content-Disposition: inline`.
 5. Maximum 10 images per listing.
 
-Storage: Vercel Blob in production, a local folder in development (behind the same
-interface).
+Storage: a local folder today (`UPLOADS_DIR`, a volume in Docker), Vercel Blob in production
+from Phase 10, behind the same interface. Images are served from
+`/api/v1/media/<orgId>/<uuid>.webp` with `nosniff` and an immutable cache header; anyone with
+the URL can load the image (including on a draft listing), which is acceptable for listing
+photos because the key is a random UUID. Implemented in Phase 4 with tests for SVG, HTML
+renamed to `.jpg`, fake JPEG headers, files over 5 MB, the 10-image limit and EXIF removal.
 
 ---
 

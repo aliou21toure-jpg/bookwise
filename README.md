@@ -5,7 +5,7 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phase 3 of 10 complete (accounts, organizations and tenant isolation).**
+> **Status: Phase 4 of 10 complete (listings, availability, image uploads and search).**
 > Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
 
 ## What works today
@@ -16,6 +16,13 @@ automated test suite.
   organization (404 for anyone else's).
 - Administrators list users, and suspend or reinstate users (all sessions revoked at once)
   and organizations, with a reason recorded in an append-only audit log.
+- Providers create listings and services (prices in integer minor units, in the
+  organization's currency), upload images (checked by their bytes, re-encoded to WebP, EXIF
+  removed), set weekly opening hours and closures, and publish. Administrators can reject or
+  restore listings.
+- Visitors search by words, type, city and price, sort and page through results, and see
+  the next open times, computed in the provider's time zone and correct across daylight
+  saving changes.
 - PostgreSQL row-level security and guard triggers repeat every rule, so the database still
   protects tenants if application code forgets a check.
 
@@ -33,6 +40,15 @@ automated test suite.
 | `GET`, `POST /api/v1/organizations/:id/members` · `DELETE …/members/:userId` | Members (read), owners (manage) |
 | `GET /api/v1/admin/users` · `PATCH /api/v1/admin/users/:id/status` | Admins |
 | `PATCH /api/v1/admin/organizations/:id/status` | Admins |
+| `GET /api/v1/listings` (search) · `GET /api/v1/listings/:id` | Anyone (drafts: members) |
+| `POST /api/v1/listings` · `PATCH`, `DELETE /api/v1/listings/:id` | Organization members |
+| `POST /api/v1/listings/:id/services` · `PATCH`, `DELETE /api/v1/services/:id` | Organization members |
+| `POST /api/v1/listings/:id/images` · `DELETE …/images/:imageId` | Organization members |
+| `GET /api/v1/availability?serviceId=&from=&to=` | Anyone (slots) |
+| `POST /api/v1/availability` · `PATCH`, `DELETE /api/v1/availability/:id` · `GET /api/v1/availability/rules` | Organization members |
+| `GET`, `POST /api/v1/unavailable-periods` · `DELETE /api/v1/unavailable-periods/:id` | Organization members |
+| `GET /api/v1/organizations/:id/listings` | Organization members |
+| `PATCH /api/v1/admin/listings/:id/status` | Admins |
 
 Create the first administrator from the command line (there is no API for it):
 `npm run admin:create -- --email you@example.com` (the account must have confirmed its email).
