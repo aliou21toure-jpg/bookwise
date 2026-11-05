@@ -3,7 +3,8 @@ import { sql } from "drizzle-orm";
 
 import { getDb, type Tx } from "./index";
 
-export type ActorRole = "customer" | "provider" | "admin" | "system";
+/** `anonymous` is a visitor without a session; it sees only public rows. */
+export type ActorRole = "anonymous" | "customer" | "provider" | "admin" | "system";
 
 export interface Actor {
   userId: string | null;
