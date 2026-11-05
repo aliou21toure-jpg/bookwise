@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CalendarCheck, ShieldCheck, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,15 @@ const pillars = [
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-16 px-4 py-20 sm:px-6">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-16 px-4 py-8 sm:px-6">
+      <nav aria-label="Account" className="flex justify-end gap-2">
+        <Button asChild variant="ghost">
+          <Link href="/sign-in">Sign in</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/sign-up">Create account</Link>
+        </Button>
+      </nav>
       <section className="flex flex-col items-start gap-6">
         <p className="text-sm font-medium tracking-wide text-primary uppercase">BookWise</p>
         <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
@@ -37,12 +46,12 @@ export default function HomePage() {
           <Button size="lg" disabled aria-describedby="coming-soon">
             Browse services
           </Button>
-          <Button size="lg" variant="outline" disabled aria-describedby="coming-soon">
-            List your business
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/sign-up?type=provider">List your business</Link>
           </Button>
         </div>
         <p id="coming-soon" className="text-sm text-muted-foreground">
-          Booking opens soon. This project is being built in public, milestone by milestone.
+          Browsing and booking open soon. Providers can already create an account and set up their business.
         </p>
       </section>
 
