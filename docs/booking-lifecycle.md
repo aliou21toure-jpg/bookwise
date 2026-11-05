@@ -1,6 +1,6 @@
 # BookWise — Booking lifecycle
 
-Status: **Proposal (Phase 1)**. Applies to the MVP booking types: professional services and
+Status: **Approved 2026-11-04.** Applies to the MVP booking types: professional services and
 activities (discrete time slots with capacity). Accommodation uses a different inventory
 model, planned in [database-design.md §8](database-design.md#8-accommodation-later-milestone).
 
@@ -63,14 +63,13 @@ stateDiagram-v2
 | `COMPLETED` | Service took place | Yes (historical) | Terminal unless admin refunds |
 | `REFUNDED` | Money returned in full | No | Yes |
 
-**[needs approval] `AWAITING_APPROVAL`.** The spec lists six states and also asks for
+**`AWAITING_APPROVAL` (ADR-008, accepted).** The spec lists six states and also asks for
 "accept or reject requests where the offering requires approval". Those two requirements
 conflict: an approval request is neither unpaid, nor confirmed. I propose one extra state,
 used only by services with `requires_approval = true`. Payment for those uses Stripe's
 **manual capture** (the card is authorized at checkout and charged only when the provider
 accepts; Stripe authorizations last up to 7 days, so the approval deadline is set to
-48 hours). If you prefer to keep exactly six states, the alternative is to drop the approval
-feature from the MVP.
+48 hours). 
 
 ---
 

@@ -1,6 +1,6 @@
 # BookWise — Security model
 
-Status: **Proposal (Phase 1)**. Based on the OWASP Top 10 (2021), OWASP ASVS 4.0 level 2 as a
+Status: **Approved 2026-11-04.** Based on the OWASP Top 10 (2021), OWASP ASVS 4.0 level 2 as a
 checklist, and the OWASP cheat sheets for authentication, session management, CSRF, file
 upload and logging.
 
@@ -27,7 +27,7 @@ upload and logging.
 | Password storage | Better Auth default scrypt hashing; minimum 10 characters, maximum 128; checked against a small common-password list |
 | Email verification | Required before a customer can create a hold or a provider can publish a listing |
 | Password reset | Single-use token, 30-minute expiry, all sessions revoked after reset |
-| Session storage | Database sessions (`sessions` table), so logout and suspension take effect immediately |
+| Session storage | Database sessions (`sessions` table), so logout and suspension take effect immediately. Better Auth stores each session token as a random 32-character value (not hashed) and signs the cookie that carries it with HMAC; only the app and owner roles can read the table |
 | Cookie | `__Secure-` prefix in production, `HttpOnly`, `Secure`, `SameSite=Lax`, 7-day expiry with sliding refresh |
 | Session fixation | New session on every sign-in; old session invalidated on password change |
 | Enumeration | Identical response and similar timing for "unknown email" and "wrong password"; reset endpoint always says "if an account exists, we sent an email" |

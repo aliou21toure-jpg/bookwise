@@ -1,7 +1,7 @@
 # BookWise — Architecture
 
-Status: **Proposal (Phase 1)**. Nothing here is implemented yet. Decisions marked
-**[needs approval]** change scope, cost, or the spec and must be confirmed before Phase 2.
+Status: **Approved 2026-11-04.** Open decisions were approved: ADR-005 (worker on Render/Railway) and ADR-008
+(`AWAITING_APPROVAL` state).
 
 Related documents: [database-design.md](database-design.md) ·
 [booking-lifecycle.md](booking-lifecycle.md) · [security.md](security.md) ·
@@ -313,7 +313,7 @@ flowchart TB
     end
 ```
 
-**[needs approval] ADR-005: where the worker runs.** Vercel functions are short-lived and
+**ADR-005 (accepted): where the worker runs.** Vercel functions are short-lived and
 cannot host a BullMQ worker. The worker must run as a long-lived container. Options:
 
 | Option | Cost | Notes |
@@ -321,7 +321,7 @@ cannot host a BullMQ worker. The worker must run as a long-lived container. Opti
 | Render / Railway / Fly.io background worker | Free tier or ~5 USD/month | Needs an account you create |
 | Run worker only in Docker Compose; in production, Vercel Cron calls `/api/internal/cron/sweep` every minute | Free | Hold expiry and reconciliation still work (DB-driven); email/reminder jobs run in the sweep instead of BullMQ in production |
 
-My recommendation is option 1 for a faithful demo. Option 2 is a documented fallback.
+**Decision:** option 1 (Render or Railway). Option 2 remains a documented fallback.
 
 **Managed services you will need accounts for** (all have free tiers): Stripe (test mode),
 Resend (with a verified sending domain, for example `mail.sadiatoure.dev`), Sentry, a managed
@@ -341,10 +341,10 @@ Short versions here; each becomes a file in `docs/adr/` during Phase 2.
 | 002 | PostgreSQL row locks + CHECK constraints for inventory; Redis never used for booking consistency | Required by spec; locks are transactional and survive Redis loss |
 | 003 | Lazy slot materialization with `UNIQUE (service_id, starts_at)` | Avoids pre-generating huge slot tables; still lockable per slot |
 | 004 | Better Auth owns `users/sessions/accounts/verifications`; BookWise owns organizations and roles | Use Better Auth for what it is good at, keep authorization in our code and RLS |
-| 005 | Worker hosting | **[needs approval]** see §8 |
+| 005 | Worker runs as a container on Render or Railway | Vercel cannot host long-lived BullMQ workers; see §8 |
 | 006 | Single platform Stripe account, no Connect payouts in MVP | Keeps scope realistic; Connect documented as a future milestone |
 | 007 | Money as `integer` minor units + `char(3)` currency, never floats | Exact arithmetic; spec requirement |
-| 008 | Provider approval flow adds a state `AWAITING_APPROVAL` | **[needs approval]** the spec's state list has no place for "requires approval"; see [booking-lifecycle.md §3](booking-lifecycle.md#3-states) |
+| 008 | Provider approval flow adds a state `AWAITING_APPROVAL` | The spec's state list has no place for "requires approval"; see [booking-lifecycle.md §3](booking-lifecycle.md#3-states) |
 | 009 | API versioned under `/api/v1`, OpenAPI 3.1 generated from Zod schemas | Docs never drift from validation |
 
 ---

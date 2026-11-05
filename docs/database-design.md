@@ -1,6 +1,6 @@
 # BookWise — Database design
 
-Status: **Proposal (Phase 1)**. PostgreSQL 17, schema managed by Drizzle ORM with
+Status: **Approved 2026-11-04.** PostgreSQL 17, schema managed by Drizzle ORM with
 reviewed SQL migrations in `src/db/migrations/`.
 
 ---
@@ -62,7 +62,7 @@ Only the important columns are listed; every table also has `created_at` / `upda
 | Table | Key columns | Notes |
 |---|---|---|
 | `users` | `id`, `email` (unique, lower-cased), `email_verified`, `name`, `role` (`customer` \| `provider` \| `admin`), `status` (`active` \| `suspended`) | `role` and `status` are BookWise additions via Better Auth `additionalFields`; `role` is **not** writable through any public endpoint |
-| `sessions` | `id`, `user_id`, `token` (stored hashed), `expires_at`, `ip_address`, `user_agent` | Better Auth database sessions; deleting the row logs the user out everywhere |
+| `sessions` | `id`, `user_id`, `token` (random, unique), `expires_at`, `ip_address`, `user_agent` | Better Auth database sessions; deleting the row logs the user out everywhere |
 | `accounts` | `user_id`, `provider_id`, `password` (scrypt hash by Better Auth) | Credential storage |
 | `verifications` | `identifier`, `value`, `expires_at` | Email verification and password reset tokens |
 
