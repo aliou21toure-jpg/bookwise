@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:worker": "esbuild src/jobs/worker.ts scripts/migrate.ts --bundle --platform=node --target=node22 --format=esm --conditions=react-server --packages=external --alias:@=./src --entry-names=[name] --out-extension:.js=.mjs --outdir=dist",
+    "build:worker": "esbuild src/jobs/worker.ts scripts/migrate.ts scripts/admin-create.ts --bundle --platform=node --target=node22 --format=esm --conditions=react-server --packages=external --alias:@=./src --alias:server-only=./scripts/shims/server-only.ts --entry-names=[name] --out-extension:.js=.mjs --outdir=dist",
     "start": "next start",
     "start:worker": "BOOKWISE_SERVICE=worker node dist/worker.mjs",
     "worker:dev": "tsx --conditions=react-server --env-file=.env.local src/jobs/worker.ts",
@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:migrate:test": "tsx --env-file=.env.test scripts/migrate.ts"
+    "db:migrate:test": "tsx --env-file=.env.test scripts/migrate.ts",
+    "admin:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/admin-create.ts"
   },
   "dependencies": {
     "@date-fns/tz": "1.5.0",

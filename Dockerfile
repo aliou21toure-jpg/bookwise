@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # One image, two processes: the Next.js web server (default) and the BullMQ worker
 # (override the command with `node worker/worker.mjs`), plus the migration runner
-# (`node worker/migrate.mjs`).
+# (`node worker/migrate.mjs`) and the operator command `node worker/admin-create.mjs`.
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
