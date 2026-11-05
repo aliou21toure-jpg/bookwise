@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { CreateOrganizationForm } from "@/components/auth/create-organization-form";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAuthContext } from "@/modules/auth";
 import { getMe } from "@/modules/users";
@@ -81,7 +82,12 @@ export default function AccountPage({ searchParams }: PageProps<"/account">) {
           </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Your account</h1>
         </div>
-        <SignOutButton />
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/bookings">Your bookings</Link>
+          </Button>
+          <SignOutButton />
+        </div>
       </div>
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading your account…</p>}>
         <AccountDetails searchParams={searchParams} />

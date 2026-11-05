@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, MapPin, Users } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { SlotPicker } from "@/components/bookings/slot-picker";
 import { formatDuration, formatMoney } from "@/lib/money";
 import { AppError } from "@/lib/http/errors";
 import { getAvailability } from "@/modules/availability";
@@ -31,20 +31,19 @@ const loadListing = cache(async (id: string): Promise<ListingDto> => {
 });
 
 /** The next few open times for a service, shown in the provider's own time zone. */
-async function NextTimes({ service, timeZone }: { service: ServiceDto; timeZone: string }) {
+async function NextTimes({ service, timeZone, listingId }: { service: ServiceDto; timeZone: string; listingId: string }) {
   const from = new Date();
   const { slots } = await getAvailability(null, { serviceId: service.id, from, to: new Date(from.getTime() + 14 * 86_400_000) });
   const open = slots.filter((s) => s.remaining > 0).slice(0, 6);
   if (open.length === 0) return <p className="text-sm text-muted-foreground">No open times in the next two weeks.</p>;
   const format = new Intl.DateTimeFormat("en-CA", { timeZone, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   return (
-    <ul aria-label={`Next open times for ${service.name}`} className="flex flex-wrap gap-2">
-      {open.map((slot) => (
-        <li key={slot.startsAt.toISOString()} className="rounded-md border bg-background px-2.5 py-1 text-sm">
-          <time dateTime={slot.startsAt.toISOString()}>{format.format(slot.startsAt)}</time>
-        </li>
-      ))}
-    </ul>
+    <SlotPicker
+      serviceId={service.id}
+      serviceName={service.name}
+      listingId={listingId}
+      slots={open.map((s) => ({ startsAt: s.startsAt.toISOString(), label: format.format(s.startsAt) }))}
+    />
   );
 }
 
@@ -112,7 +111,7 @@ function ListingContent({ listing }: { listing: ListingDto }) {
             </div>
             {service.description && <p className="text-sm text-muted-foreground">{service.description}</p>}
             <Suspense fallback={<p className="text-sm text-muted-foreground">Checking availability…</p>}>
-              <NextTimes service={service} timeZone={listing.organization.timezone} />
+              <NextTimes service={service} timeZone={listing.organization.timezone} listingId={listing.id} />
             </Suspense>
             <p className="text-xs text-muted-foreground">
               Times are shown in {listing.organization.timezone.replace("_", " ")} time. Free cancellation up to {service.cancellationWindowHours} hours before.
@@ -121,14 +120,7 @@ function ListingContent({ listing }: { listing: ListingDto }) {
         ))}
       </section>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="lg" disabled aria-describedby="booking-soon">
-          Book now
-        </Button>
-        <p id="booking-soon" className="text-sm text-muted-foreground">
-          Online booking opens in the next release.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">Pick a time to hold it for 10 minutes while you confirm.</p>
     </article>
   );
 }
