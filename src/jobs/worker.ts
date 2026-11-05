@@ -1,15 +1,15 @@
 /**
  * Background worker entry point (a separate long-running process; see ADR-005).
- * Phase 2 starts the process, connects to Redis and shuts down cleanly. Queues for hold
- * expiry, emails, reminders and reconciliation are registered in later phases.
+ * Runs hold expiry, the minute-by-minute sweeper and the daily capacity check. Every
+ * handler is idempotent: it re-reads the database and does nothing if work is already done.
  */
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
 
 import { logger } from "@/lib/logger";
-import { QUEUES } from "./queues";
+import { capacityDrift, expireHold, sweep } from "@/modules/bookings";
+import { BOOKING_JOBS, QUEUES } from "./queues";
 
-// BOOKWISE_SERVICE=worker is set by the start script and Docker image.
 const log = logger;
 
 async function main(): Promise<void> {
@@ -28,7 +28,31 @@ async function main(): Promise<void> {
       },
       { connection, concurrency: 1 },
     ),
+    new Worker(
+      QUEUES.bookings,
+      async (job) => {
+        switch (job.name) {
+          case BOOKING_JOBS.expireHold:
+            return { expired: await expireHold(String(job.data.holdId)) };
+          case BOOKING_JOBS.sweep:
+            return sweep();
+          case BOOKING_JOBS.consistency: {
+            const drift = await capacityDrift();
+            if (drift.length) log.error({ drift }, "slot capacity drift detected");
+            return { driftedSlots: drift.length };
+          }
+          default:
+            throw new Error(`Unknown job ${job.name}`);
+        }
+      },
+      { connection, concurrency: 5 },
+    ),
   ];
+
+  // Repeatable safety nets. upsertJobScheduler is idempotent across restarts and replicas.
+  const scheduler = new Queue(QUEUES.bookings, { connection });
+  await scheduler.upsertJobScheduler("bookings-sweep", { every: 60_000 }, { name: BOOKING_JOBS.sweep });
+  await scheduler.upsertJobScheduler("bookings-consistency", { pattern: "17 3 * * *" }, { name: BOOKING_JOBS.consistency });
 
   for (const w of workers) {
     w.on("failed", (job, err) => log.error({ queue: w.name, jobId: job?.id, err }, "job failed"));
@@ -38,6 +62,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     log.info({ signal }, "shutting down: finishing in-flight jobs");
     await Promise.all(workers.map((w) => w.close()));
+    await scheduler.close();
     await connection.quit();
     process.exit(0);
   };
