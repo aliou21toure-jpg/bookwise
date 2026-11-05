@@ -22,6 +22,8 @@ export const ServerEnvSchema = z.object({
   // mailpit: delivered to a local Mailpit inbox over its HTTP API. Resend arrives in Phase 8.
   MAIL_TRANSPORT: z.enum(["memory", "log", "mailpit"]).default("log"),
   MAILPIT_URL: z.url().default("http://localhost:8025"),
+  // Uploaded images (local driver). Object storage (Vercel Blob) is wired in Phase 10.
+  UPLOADS_DIR: z.string().min(1).default(".data/uploads"),
   MAIL_FROM: z.string().min(3).default("BookWise <no-reply@bookwise.local>"),
 });
 

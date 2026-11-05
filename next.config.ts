@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   poweredByHeader: false,
   // pg and the BullMQ stack are Node-only; keep them out of the bundler.
-  serverExternalPackages: ["pg", "bullmq", "ioredis", "pino"],
+  serverExternalPackages: ["pg", "bullmq", "ioredis", "pino", "sharp"],
   turbopack: {
     rules: {
       "*.css": {

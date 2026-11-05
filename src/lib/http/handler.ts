@@ -137,6 +137,9 @@ export function toAppError(err: unknown): AppError {
       return new AppError("FORBIDDEN", "You do not have permission to do that.");
     case "23505":
       return new AppError("CONFLICT", "That conflicts with an existing record.");
+    case "23514":
+      // A CHECK constraint (for example maxPerBooking above capacity after a partial update).
+      return new AppError("VALIDATION_FAILED", "A value is outside the allowed range.");
   }
   if (err instanceof ZodError) {
     return new AppError(

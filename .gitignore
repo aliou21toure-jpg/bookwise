@@ -17,3 +17,6 @@ next-env.d.ts
 .vercel-build
 AGENTS.md
 !.env.test.example
+
+# Local uploads
+.data/

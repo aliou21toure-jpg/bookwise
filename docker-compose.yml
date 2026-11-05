@@ -59,6 +59,8 @@ services:
     build: .
     environment: *app-env
     ports: ["3000:3000"]
+    volumes:
+      - uploads:/app/data/uploads
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -76,3 +78,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

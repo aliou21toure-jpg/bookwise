@@ -33,6 +33,9 @@ COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/dist ./worker
 COPY --from=prod-deps --chown=node:node /app/node_modules ./worker/node_modules
 COPY --from=build --chown=node:node /app/src/db/migrations ./worker/migrations
+# Local image storage (mount a volume here, or use object storage in production).
+ENV UPLOADS_DIR=/app/data/uploads
+RUN mkdir -p /app/data/uploads && chown -R node:node /app/data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s \
