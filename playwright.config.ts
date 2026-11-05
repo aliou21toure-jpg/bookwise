@@ -25,6 +25,7 @@ export default defineConfig({
     url: `${baseURL}/api/v1/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { APP_URL: baseURL },
+    // Sign-up signs in immediately in E2E; integration tests cover email verification.
+    env: { APP_URL: baseURL, REQUIRE_EMAIL_VERIFICATION: "false", MAIL_TRANSPORT: "log" },
   },
 });

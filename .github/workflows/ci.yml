@@ -50,7 +50,8 @@ jobs:
       DATABASE_MIGRATION_URL: postgres://bookwise_owner:owner_ci_pw@localhost:5432/bookwise_test
       REDIS_URL: redis://localhost:6379/1
       BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
-      REQUIRE_EMAIL_VERIFICATION: "false"
+      REQUIRE_EMAIL_VERIFICATION: "true"
+      MAIL_TRANSPORT: memory
       LOG_LEVEL: silent
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +129,7 @@ jobs:
       REDIS_URL: redis://localhost:6379/2
       BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
       REQUIRE_EMAIL_VERIFICATION: "false"
+      MAIL_TRANSPORT: log
       LOG_LEVEL: warn
     steps:
       - uses: actions/checkout@v4
