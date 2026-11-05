@@ -5,8 +5,37 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phase 2 of 10 complete (foundation).** Booking features arrive phase by phase;
-> see the [roadmap](docs/roadmap.md).
+> **Status: Phase 3 of 10 complete (accounts, organizations and tenant isolation).**
+> Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
+
+## What works today
+
+- Customer and provider registration, email verification, sign-in and sign-out, password
+  reset (signs out every device), and a profile.
+- Organizations with `owner` and `staff` members; a provider can only ever see their own
+  organization (404 for anyone else's).
+- Administrators list users, and suspend or reinstate users (all sessions revoked at once)
+  and organizations, with a reason recorded in an append-only audit log.
+- PostgreSQL row-level security and guard triggers repeat every rule, so the database still
+  protects tenants if application code forgets a check.
+
+### API (v1)
+
+| Method and path | Who |
+|---|---|
+| `POST /api/v1/auth/register` | Anyone (customer, or provider with an organization) |
+| `POST /api/v1/auth/login` · `POST /api/v1/auth/logout` | Anyone |
+| `GET`, `PATCH /api/v1/auth/me` | Signed in |
+| `POST /api/v1/auth/password/forgot` · `POST /api/v1/auth/password/reset` | Anyone |
+| `POST /api/v1/auth/verification/resend` | Anyone |
+| `GET`, `POST /api/v1/organizations` | Signed in |
+| `GET`, `PATCH /api/v1/organizations/:id` | Members (read), owners (edit) |
+| `GET`, `POST /api/v1/organizations/:id/members` · `DELETE …/members/:userId` | Members (read), owners (manage) |
+| `GET /api/v1/admin/users` · `PATCH /api/v1/admin/users/:id/status` | Admins |
+| `PATCH /api/v1/admin/organizations/:id/status` | Admins |
+
+Create the first administrator from the command line (there is no API for it):
+`npm run admin:create -- --email you@example.com` (the account must have confirmed its email).
 
 ## Design documents
 
@@ -35,7 +64,7 @@ cp .env.example .env.local                    # then set BETTER_AUTH_SECRET
 cp .env.test.example .env.test
 npm ci
 npm run db:migrate                            # uses DATABASE_MIGRATION_URL from your shell
-npm run dev                                   # http://localhost:3000
+npm run dev                                   # http://localhost:3000 (emails: http://localhost:8025)
 npm run worker:dev                            # background worker, in a second terminal
 ```
 

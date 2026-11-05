@@ -30,8 +30,9 @@ upload and logging.
 | Session storage | Database sessions (`sessions` table), so logout and suspension take effect immediately. Better Auth stores each session token as a random 32-character value (not hashed) and signs the cookie that carries it with HMAC; only the app and owner roles can read the table |
 | Cookie | `__Secure-` prefix in production, `HttpOnly`, `Secure`, `SameSite=Lax`, 7-day expiry with sliding refresh |
 | Session fixation | New session on every sign-in; old session invalidated on password change |
-| Enumeration | Identical response and similar timing for "unknown email" and "wrong password"; reset endpoint always says "if an account exists, we sent an email" |
-| Suspension | Suspending a user deletes their sessions and blocks sign-in; suspending an organization blocks its members' provider actions and unpublishes its listings from search |
+| Enumeration | Identical response for "unknown email" and "wrong password"; registering an existing email returns the same `202` as a new one (Better Auth answers with a decoy user and BookWise creates nothing for it); the reset and resend-verification endpoints always return the same `202` |
+| Suspension | Suspending a user deletes all their sessions in the same transaction, and a Better Auth session hook refuses new sessions while the account is suspended; suspending an organization blocks owners' changes (API `403 ORGANIZATION_SUSPENDED`, and RLS) and, from Phase 4, unpublishes its listings |
+| Forms | Every auth form posts with `method="post"` and its submit button stays disabled until hydration, so credentials can never end up in a URL through a native GET submission |
 
 ---
 
@@ -41,8 +42,14 @@ upload and logging.
 
 - `customer`: the default for every sign-up.
 - `provider`: granted when the user creates an organization (they become its `owner`).
-- `admin`: **cannot be obtained through the API.** Created only with
-  `npm run admin:create -- --email ...` run by an operator, which writes an audit log entry.
+- `admin`: **cannot be obtained through the API.** Granted to an existing, email-verified
+  account only with `npm run admin:create -- --email ...` (or `node worker/admin-create.mjs`
+  in the production image), run by an operator; it writes an audit log entry naming the
+  operator. The database enforces this too: only the `system` context can set
+  `role = 'admin'`.
+- Organization members are `owner` or `staff`. Owners edit the organization and manage
+  members; staff can read. Every organization keeps at least one owner (API `409 LAST_OWNER`
+  and a database trigger).
 
 The `role` field is excluded from every input schema (Zod `strictObject`), so mass
 assignment fails with `400`.

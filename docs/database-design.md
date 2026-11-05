@@ -158,7 +158,17 @@ shows affected bookings and asks them to cancel those first.
 ## 6. Row-level security
 
 RLS is enabled (and `FORCE ROW LEVEL SECURITY`) on every table that carries
-`organization_id` or `customer_id`, plus `reviews` and `notifications`.
+`organization_id` or `customer_id`, plus `reviews` and `notifications`. The exceptions are
+`organizations` and `organization_members`: RLS is enabled but not forced, because the
+`SECURITY DEFINER` membership helpers must read them unfiltered
+([ADR-010](adr/010-rls-helpers-and-force-exceptions.md)). The application role is subject to
+RLS on every table either way.
+
+Implemented in Phase 3 (`0003_identity_rls.sql`): helpers `app_user_id()`, `app_role()`,
+`app_is_privileged()`, `app_is_member()`, `app_is_org_owner()`, `app_org_is_active()`,
+`app_can_claim_org()`; policies on organizations, members, provider and customer profiles and
+the audit log; guard triggers on `users` (role/status), `organizations` (status, creator, time
+zone), `organization_members` (last owner) and `audit_logs` (append-only).
 
 **Context.** The application sets, per transaction only:
 `app.user_id`, `app.role` (`customer` \| `provider` \| `admin` \| `system`). Helper functions
