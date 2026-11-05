@@ -1,0 +1,76 @@
+# Local development stack:
+#   docker compose up -d postgres redis mailpit     # services only, run `npm run dev` on the host
+#   docker compose --profile app up --build         # everything in containers
+name: bookwise
+
+x-app-env: &app-env
+  APP_URL: http://localhost:3000
+  DATABASE_URL: postgres://bookwise_app:app_local_pw@postgres:5432/bookwise_dev
+  REDIS_URL: redis://redis:6379
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+  REQUIRE_EMAIL_VERIFICATION: "true"
+  LOG_LEVEL: info
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      BOOKWISE_OWNER_PASSWORD: owner_local_pw
+      BOOKWISE_APP_PASSWORD: app_local_pw
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/10-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+      - ./scripts/db:/scripts:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  mailpit:
+    # Catches outgoing email locally: http://localhost:8025
+    image: axllent/mailpit:v1.27
+    ports: ["8025:8025", "1025:1025"]
+
+  migrate:
+    profiles: ["app"]
+    build: .
+    command: ["node", "worker/migrate.mjs"]
+    environment:
+      DATABASE_MIGRATION_URL: postgres://bookwise_owner:owner_local_pw@postgres:5432/bookwise_dev
+      MIGRATIONS_DIR: worker/migrations
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    profiles: ["app"]
+    build: .
+    environment: *app-env
+    ports: ["3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    profiles: ["app"]
+    build: .
+    command: ["node", "worker/worker.mjs"]
+    environment:
+      <<: *app-env
+      BOOKWISE_SERVICE: worker
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
