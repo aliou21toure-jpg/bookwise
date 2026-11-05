@@ -1,0 +1,122 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens (shadcn/ui convention). Neutral surfaces, one deep teal accent.
+ * Colours are OKLCH so light/dark pairs keep the same perceived contrast.
+ */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.985 0.002 95);
+  --foreground: oklch(0.21 0.01 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.01 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.01 260);
+  --primary: oklch(0.45 0.08 195);
+  --primary-foreground: oklch(0.985 0.002 95);
+  --secondary: oklch(0.955 0.004 95);
+  --secondary-foreground: oklch(0.25 0.01 260);
+  --muted: oklch(0.955 0.004 95);
+  --muted-foreground: oklch(0.5 0.012 260);
+  --accent: oklch(0.94 0.02 195);
+  --accent-foreground: oklch(0.3 0.06 195);
+  --destructive: oklch(0.55 0.2 27);
+  --success: oklch(0.55 0.12 155);
+  --border: oklch(0.9 0.004 95);
+  --input: oklch(0.88 0.005 95);
+  --ring: oklch(0.45 0.08 195);
+}
+
+.dark {
+  --background: oklch(0.17 0.008 260);
+  --foreground: oklch(0.96 0.003 95);
+  --card: oklch(0.21 0.01 260);
+  --card-foreground: oklch(0.96 0.003 95);
+  --popover: oklch(0.21 0.01 260);
+  --popover-foreground: oklch(0.96 0.003 95);
+  --primary: oklch(0.72 0.09 195);
+  --primary-foreground: oklch(0.17 0.008 260);
+  --secondary: oklch(0.26 0.01 260);
+  --secondary-foreground: oklch(0.96 0.003 95);
+  --muted: oklch(0.26 0.01 260);
+  --muted-foreground: oklch(0.72 0.01 260);
+  --accent: oklch(0.3 0.03 195);
+  --accent-foreground: oklch(0.9 0.04 195);
+  --destructive: oklch(0.65 0.19 25);
+  --success: oklch(0.7 0.13 155);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.09 195);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: oklch(0.17 0.008 260);
+    --foreground: oklch(0.96 0.003 95);
+    --card: oklch(0.21 0.01 260);
+    --card-foreground: oklch(0.96 0.003 95);
+    --popover: oklch(0.21 0.01 260);
+    --popover-foreground: oklch(0.96 0.003 95);
+    --primary: oklch(0.72 0.09 195);
+    --primary-foreground: oklch(0.17 0.008 260);
+    --secondary: oklch(0.26 0.01 260);
+    --secondary-foreground: oklch(0.96 0.003 95);
+    --muted: oklch(0.26 0.01 260);
+    --muted-foreground: oklch(0.72 0.01 260);
+    --accent: oklch(0.3 0.03 195);
+    --accent-foreground: oklch(0.9 0.04 195);
+    --destructive: oklch(0.65 0.19 25);
+    --success: oklch(0.7 0.13 155);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.72 0.09 195);
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

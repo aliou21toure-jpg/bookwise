@@ -9,3 +9,11 @@ test-results/
 *.log
 .DS_Store
 .vercel
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+/build
+/dist
+.vercel-build
+AGENTS.md
+!.env.test.example
