@@ -43,8 +43,9 @@ test("a customer reserves a free time, confirms it, and cancels it", async ({ pa
   await expect(page.getByText(/^BW-[0-9A-Z]{8}$/)).toBeVisible();
 
   await page.getByRole("link", { name: "← Your bookings" }).click();
-  await expect(page.getByRole("region", { name: "Upcoming" }).getByRole("listitem")).toHaveCount(1);
-  await page.getByRole("region", { name: "Upcoming" }).getByRole("link").click();
+  const upcoming = page.getByRole("list", { name: "Upcoming bookings" });
+  await expect(upcoming.getByRole("listitem")).toHaveCount(1);
+  await upcoming.getByRole("link").first().click();
 
   await page.getByRole("button", { name: "Cancel booking" }).click();
   await expect(page.getByText("Cancelled", { exact: true })).toBeVisible();
