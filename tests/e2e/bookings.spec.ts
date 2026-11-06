@@ -51,7 +51,7 @@ test("a customer reserves a free time, confirms it, and cancels it", async ({ pa
   await provider.dispose();
 });
 
-test("a paid time is held but waits for card payment", async ({ page, playwright, baseURL }) => {
+test("a customer pays for a time and the payment webhook confirms it", async ({ page, playwright, baseURL }) => {
   const word = tag();
   const provider = await playwright.request.newContext({ baseURL });
   const { listingId } = await seedProvider(provider, word, { priceMinor: 4500 });
@@ -59,9 +59,27 @@ test("a paid time is held but waits for card payment", async ({ page, playwright
 
   await page.goto(`/listings/${listingId}`);
   await page.getByRole("list", { name: "Next open times for Intro session" }).getByRole("button").first().click();
-  await expect(page.getByText("$45.00")).toBeVisible();
-  await expect(page.getByText(/Card payment opens in the next release/)).toBeVisible();
+  await expect(page.getByText("$45.00", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm booking" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Pay $45.00" }).click();
+  await expect(page.getByText(/local payment simulator/)).toBeVisible();
+  await page.getByRole("button", { name: "Try a declined card" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "declined" })).toBeVisible();
+  await expect(page.getByText("Held, not confirmed")).toBeVisible();
+
+  await page.getByRole("button", { name: "Pay $45.00 with a test card" }).click();
+  await expect(page.getByText("Confirmed", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await provider.dispose();
+});
+
+test("a paid hold can be cancelled before paying", async ({ page, playwright, baseURL }) => {
+  const word = tag();
+  const provider = await playwright.request.newContext({ baseURL });
+  const { listingId } = await seedProvider(provider, word, { priceMinor: 4500 });
+  await signUpCustomer(page.request, word);
+  await page.goto(`/listings/${listingId}`);
+  await page.getByRole("list", { name: "Next open times for Intro session" }).getByRole("button").first().click();
   await page.getByRole("button", { name: "Cancel hold" }).click();
   await expect(page.getByText("Cancelled", { exact: true })).toBeVisible();
   await provider.dispose();
