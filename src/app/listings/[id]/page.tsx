@@ -1,12 +1,18 @@
 import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Clock, MapPin, Users } from "lucide-react";
 
 import { SlotPicker } from "@/components/bookings/slot-picker";
+import { Stars } from "@/components/dashboard/review-form";
+import { SaveButton } from "@/components/listings/save-button";
+import { formatDate } from "@/lib/format";
 import { formatDuration, formatMoney } from "@/lib/money";
+import { getAuthContext } from "@/modules/auth";
+import { isListingSaved, listListingReviews } from "@/modules/engagement";
 import { AppError } from "@/lib/http/errors";
 import { getAvailability } from "@/modules/availability";
 import { getListing, type ListingDto, type ServiceDto } from "@/modules/listings";
@@ -47,6 +53,52 @@ async function NextTimes({ service, timeZone, listingId }: { service: ServiceDto
   );
 }
 
+/** Reads the session, so it streams in after the public listing content. */
+async function Save({ listingId }: { listingId: string }) {
+  const ctx = await getAuthContext(await headers());
+  const signedIn = Boolean(ctx && ctx.user.status === "active");
+  return <SaveButton listingId={listingId} signedIn={signedIn} saved={signedIn ? await isListingSaved(ctx!, listingId) : false} />;
+}
+
+async function Reviews({ listingId, timeZone }: { listingId: string; timeZone: string }) {
+  const { summary, rows } = await listListingReviews(null, listingId, { page: 1, pageSize: 5 });
+  return (
+    <section aria-labelledby="reviews-heading" className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 id="reviews-heading" className="text-xl font-semibold">
+          Reviews
+        </h2>
+        {summary.average !== null && (
+          <p className="flex items-center gap-2 text-sm">
+            <Stars rating={summary.average} label={`Rated ${summary.average} out of 5`} />
+            <span>
+              <strong>{summary.average}</strong> · {summary.count} {summary.count === 1 ? "review" : "reviews"}
+            </span>
+          </p>
+        )}
+      </div>
+      {rows.length ? (
+        <ul className="grid gap-3">
+          {rows.map((r) => (
+            <li key={r.id} className="grid gap-1 rounded-xl border bg-card p-4">
+              <p className="flex flex-wrap items-center gap-2 text-sm">
+                <Stars rating={r.rating} />
+                <span className="font-medium">{r.author}</span>
+                <span className="text-muted-foreground">
+                  · {r.serviceName} · {formatDate(r.createdAt, timeZone)}
+                </span>
+              </p>
+              {r.comment && <p className="text-sm whitespace-pre-line">{r.comment}</p>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No reviews yet. Customers can review a booking after their visit.</p>
+      )}
+    </section>
+  );
+}
+
 export async function generateMetadata({ params }: PageProps<"/listings/[id]">): Promise<Metadata> {
   const { id } = await params;
   const listing = await loadListing(id);
@@ -62,9 +114,14 @@ function ListingContent({ listing }: { listing: ListingDto }) {
       <header className="grid gap-2">
         <p className="text-sm font-medium tracking-wide text-primary uppercase">{listing.organization.name}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-balance">{listing.title}</h1>
-        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <MapPin aria-hidden className="size-4" /> {listing.city}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <MapPin aria-hidden className="size-4" /> {listing.city}
+          </p>
+          <Suspense fallback={null}>
+            <Save listingId={listing.id} />
+          </Suspense>
+        </div>
       </header>
 
       {cover && (
@@ -121,6 +178,10 @@ function ListingContent({ listing }: { listing: ListingDto }) {
       </section>
 
       <p className="text-sm text-muted-foreground">Pick a time to hold it for 10 minutes while you confirm.</p>
+
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Loading reviews…</p>}>
+        <Reviews listingId={listing.id} timeZone={listing.organization.timezone} />
+      </Suspense>
     </article>
   );
 }
