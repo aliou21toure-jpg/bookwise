@@ -105,8 +105,19 @@ assignment fails with `400`.
   match our `payments` row, or the event is stored and flagged instead of applied.
 - No card data ever touches BookWise: card entry happens in Stripe Elements inside Stripe's
   iframe (PCI SAQ A scope).
-- Refunds require an authorized actor, are idempotent (`refund:${bookingId}`), and are
+- Refunds require an authorized actor, are idempotent (`refund-<refundId>`), and are
   audited.
+
+**As built (Phase 6).** All provider calls go through one `PaymentGateway` interface with a
+Stripe implementation and a local simulator. The simulator signs its events with Stripe's own
+scheme, so the production verification code runs on every simulated payment, and the server
+refuses to start it unless `APP_URL` is local; Stripe keys must be test-mode keys. Payment
+rows are written only in the system context, their amount is checked against the booking
+total by a trigger, webhook payloads cannot be edited afterwards, and the application role
+cannot delete payments, events or refunds. Provider calls (capture, cancel, refund) run after
+the database commit; a reconcile job retries anything that failed and asks Stripe about open
+payments whose webhook never arrived. Money that arrives for a booking that was cancelled in
+the meantime is refunded automatically and the event is flagged.
 
 ---
 

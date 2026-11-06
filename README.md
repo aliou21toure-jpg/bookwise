@@ -5,7 +5,9 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phase 5 of 10 complete (the booking engine).** Card payments arrive in Phase 6.
+> **Status: Phase 6 of 10 built (payments).** Everything runs against a local payment
+> simulator that signs its webhooks exactly like Stripe; one real Stripe test-mode payment is
+> still to be run once test keys are added (see "Switching to Stripe" below).
 > Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
 
 ## What works today
@@ -26,6 +28,11 @@ automated test suite.
 - Customers pick a time and it is held for 10 minutes. Free bookings confirm at once (or
   wait for the provider's approval); paid ones wait for card payment (Phase 6). Customers
   cancel inside the provider's policy; providers approve, reject, cancel and complete.
+- Paid bookings are confirmed only by a signature-verified, deduplicated payment webhook.
+  Approval services authorize the card and capture it when the provider accepts. Cancellations
+  refund automatically; a payment that arrives after the hold expired re-confirms the booking
+  if the time is still free and is refunded otherwise. A reconcile job retries refunds and
+  catches lost webhooks.
 - **No overselling, proven:** 25 customers request the last seat at the same moment and
   exactly one gets it. A nightly workflow runs that test 50 times in a row.
 - Every request that creates something takes an `Idempotency-Key`, so retries never book
@@ -62,6 +69,9 @@ automated test suite.
 | `POST /api/v1/bookings/:id/cancel` | Customer (inside policy), provider or admin (with a reason) |
 | `POST /api/v1/bookings/:id/approve` · `/reject` · `/complete` | Provider members |
 | `GET /api/v1/admin/bookings` | Admins |
+| `POST /api/v1/payments/create-intent` (Idempotency-Key) · `GET /api/v1/payments/:id` | The booking's customer (payments: whoever can see the booking) |
+| `POST /api/v1/payments/webhook` | Stripe (signature-verified) |
+| `POST /api/v1/admin/bookings/:id/refund` | Admins (completed bookings, with a reason) |
 
 Create the first administrator from the command line (there is no API for it):
 `npm run admin:create -- --email you@example.com` (the account must have confirmed its email).
@@ -98,6 +108,18 @@ npm run worker:dev                            # background worker, in a second t
 ```
 
 Everything in containers instead: `docker compose --profile app up --build`.
+
+## Switching to Stripe
+
+Payments default to `PAYMENT_PROVIDER=fake`, a simulator that the server refuses to run on
+anything but a local URL. To use Stripe in test mode:
+
+1. Set `PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY=sk_test_…` and
+   `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_…` (live keys are rejected at start-up).
+2. Forward webhooks locally with `stripe listen --forward-to localhost:3000/api/v1/payments/webhook`
+   and set `STRIPE_WEBHOOK_SECRET` to the `whsec_…` it prints (in production, create an
+   endpoint for the same path in the Stripe dashboard).
+3. Pay with the test card `4242 4242 4242 4242`, any future date and any CVC.
 
 ## Checks
 

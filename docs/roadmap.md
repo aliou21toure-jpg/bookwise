@@ -1,6 +1,6 @@
 # BookWise — Implementation roadmap
 
-Status: Phase 1 approved 2026-11-04 (ADR-005: Render/Railway worker; ADR-008: `AWAITING_APPROVAL` state). Phases 2 to 5 complete. Each phase ends with a short report: what was built, files
+Status: Phase 1 approved 2026-11-04 (ADR-005: Render/Railway worker; ADR-008: `AWAITING_APPROVAL` state). Phases 2 to 5 complete; Phase 6 built against the payment simulator, with the real Stripe test-mode payment pending test keys. Each phase ends with a short report: what was built, files
 changed, decisions, tests run with **real** results, remaining issues, security notes, and the
 next phase. A phase does not start while a critical requirement of the previous one fails.
 
