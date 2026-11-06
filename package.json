@@ -24,6 +24,8 @@
     "@date-fns/tz": "1.5.0",
     "@hookform/resolvers": "7.0.2",
     "@radix-ui/react-slot": "1.5.0",
+    "@stripe/react-stripe-js": "7.0.0",
+    "@stripe/stripe-js": "10.1.0",
     "better-auth": "1.7.17",
     "bullmq": "6.7.0",
     "class-variance-authority": "0.7.1",
@@ -42,6 +44,7 @@
     "react-hook-form": "7.91.0",
     "server-only": "0.0.1",
     "sharp": "0.35.5",
+    "stripe": "23.0.0",
     "tailwind-merge": "3.7.0",
     "zod": "4.6.7"
   },
