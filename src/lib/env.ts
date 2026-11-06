@@ -25,7 +25,31 @@ export const ServerEnvSchema = z.object({
   // Uploaded images (local driver). Object storage (Vercel Blob) is wired in Phase 10.
   UPLOADS_DIR: z.string().min(1).default(".data/uploads"),
   MAIL_FROM: z.string().min(3).default("BookWise <no-reply@bookwise.local>"),
+  // Payments: `stripe` (test-mode keys) or `fake`, a local simulator that signs its webhooks
+  // exactly like Stripe. The simulator is refused unless APP_URL is a local address.
+  PAYMENT_PROVIDER: z.enum(["stripe", "fake"]).default("fake"),
+  STRIPE_SECRET_KEY: z
+    .string()
+    .regex(/^(sk|rk)_test_[A-Za-z0-9]+$/, "Use a Stripe test-mode key (sk_test_… or rk_test_…)")
+    .optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_", "STRIPE_WEBHOOK_SECRET starts with whsec_").optional(),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().regex(/^pk_test_[A-Za-z0-9]+$/, "Use a Stripe test-mode publishable key (pk_test_…)").optional(),
+}).superRefine((v, ctx) => {
+  if (v.PAYMENT_PROVIDER === "stripe") {
+    for (const key of ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] as const) {
+      if (!v[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required when PAYMENT_PROVIDER=stripe` });
+    }
+  }
+  if (v.PAYMENT_PROVIDER === "fake" && !isLocalUrl(v.APP_URL)) {
+    ctx.addIssue({ code: "custom", path: ["PAYMENT_PROVIDER"], message: "Simulated payments only run on localhost; set PAYMENT_PROVIDER=stripe" });
+  }
 });
+
+/** localhost, 127.0.0.1, [::1] or a *.localhost / *.test name: never a public deployment. */
+export function isLocalUrl(url: string): boolean {
+  const host = new URL(url).hostname;
+  return ["localhost", "127.0.0.1", "[::1]", "::1"].includes(host) || host.endsWith(".localhost") || host.endsWith(".test");
+}
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 

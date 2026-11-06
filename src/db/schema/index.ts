@@ -5,3 +5,4 @@ export * from "./audit";
 export * from "./catalogue";
 export * from "./availability";
 export * from "./bookings";
+export * from "./payments";
