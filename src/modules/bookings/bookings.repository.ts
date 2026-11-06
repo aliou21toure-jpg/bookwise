@@ -195,7 +195,14 @@ export interface BookingListFilter extends PageQuery {
   status?: BookingStatus;
   from?: Date;
   to?: Date;
+  /** upcoming: still ahead and active (soonest first); past: everything else (newest first). */
+  timeframe?: "upcoming" | "past";
+  serviceId?: string;
+  /** Booking reference, or the customer's name or email (staff views only). */
+  q?: string;
 }
+
+const ACTIVE_STATUSES: BookingStatus[] = ["PENDING_PAYMENT", "AWAITING_APPROVAL", "CONFIRMED"];
 
 export async function listBookings(tx: Tx, f: BookingListFilter): Promise<{ rows: BookingRow[]; total: number }> {
   const where: SQL[] = [];
@@ -204,9 +211,20 @@ export async function listBookings(tx: Tx, f: BookingListFilter): Promise<{ rows
   if (f.status) where.push(eq(bookings.status, f.status));
   if (f.from) where.push(gte(bookings.startsAt, f.from));
   if (f.to) where.push(lt(bookings.startsAt, f.to));
+  if (f.serviceId) where.push(eq(bookings.serviceId, f.serviceId));
+  const upcoming = and(gte(bookings.endsAt, sql`now()`), inArray(bookings.status, ACTIVE_STATUSES))!;
+  if (f.timeframe === "upcoming") where.push(upcoming);
+  if (f.timeframe === "past") where.push(sql`not (${upcoming})`);
+  if (f.q) {
+    const pattern = `%${f.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    where.push(
+      sql`(${bookings.reference} ilike ${pattern} or exists (select 1 from bookwise.users u where u.id = ${bookings.customerId} and (u.name ilike ${pattern} or u.email ilike ${pattern})))`,
+    );
+  }
   const cond = where.length ? and(...where) : undefined;
+  const order = f.timeframe === "upcoming" ? [asc(bookings.startsAt), asc(bookings.id)] : [desc(bookings.startsAt), desc(bookings.id)];
   const [rows, [totals]] = [
-    await tx.select(bookingColumns).from(bookings).where(cond).orderBy(desc(bookings.startsAt), desc(bookings.id)).limit(f.pageSize).offset(pageOffset(f)),
+    await tx.select(bookingColumns).from(bookings).where(cond).orderBy(...order).limit(f.pageSize).offset(pageOffset(f)),
     await tx.select({ n: count() }).from(bookings).where(cond),
   ];
   return { rows, total: totals?.n ?? 0 };

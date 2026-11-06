@@ -3,7 +3,7 @@ import { ZodError, type ZodType } from "zod";
 
 import { logger, type Logger } from "@/lib/logger";
 import { AppError } from "./errors";
-import { jsonResponse, type ErrorBody, type PageMeta } from "./response";
+import { jsonResponse, type ErrorBody, type HasMoreMeta, type PageMeta } from "./response";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,64}$/;
@@ -19,7 +19,7 @@ export interface HandlerContext<TBody, TQuery, TParams> {
 
 export interface HandlerResult<T> {
   data: T;
-  meta?: PageMeta;
+  meta?: PageMeta | HasMoreMeta;
   status?: number;
   headers?: HeadersInit;
 }

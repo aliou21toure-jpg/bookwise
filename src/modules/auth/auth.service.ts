@@ -4,13 +4,16 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
+import { withActor } from "@/db/with-actor";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/errors";
 import { logger } from "@/lib/logger";
+import { recordAudit } from "@/modules/audit";
 import type { RequestMeta } from "@/modules/audit/request-meta";
 import { createOrganization, type OrganizationDto } from "@/modules/organizations/organizations.service";
 import { getAuth } from "./auth";
-import type { LoginBody, RegisterBody } from "./auth.schemas";
+import type { ChangePasswordBody, LoginBody, RegisterBody } from "./auth.schemas";
+import type { AuthContext } from "./session";
 
 /** Translate Better Auth errors into BookWise error codes; unknown ones become 500s. */
 function translate(err: unknown): never {
@@ -30,6 +33,8 @@ function translate(err: unknown): never {
     case "PASSWORD_TOO_LONG":
     case "INVALID_EMAIL":
       throw new AppError("VALIDATION_FAILED", err.message);
+    case "INVALID_PASSWORD":
+      throw new AppError("INVALID_CREDENTIALS", "Your current password is incorrect.");
     case "INVALID_TOKEN":
       throw new AppError("BAD_REQUEST", "This link is invalid or has expired. Request a new one.");
   }
@@ -126,6 +131,26 @@ export async function requestPasswordReset(email: string): Promise<void> {
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
   await getAuth().api.resetPassword({ body: { token, newPassword } }).catch(translate);
+}
+
+/**
+ * Change the password of the signed-in user. Better Auth re-checks the current password;
+ * with revokeOtherSessions it deletes every other session and issues a new cookie here.
+ */
+export async function changePassword(ctx: AuthContext, input: ChangePasswordBody, request: Request, meta: RequestMeta): Promise<Headers> {
+  const { headers } = await getAuth()
+    .api.changePassword({ body: input, headers: request.headers, returnHeaders: true })
+    .catch(translate);
+  await withActor(ctx.actor, (tx) =>
+    recordAudit(tx, ctx.actor, {
+      action: "user.password_changed",
+      entityType: "user",
+      entityId: ctx.user.id,
+      after: { otherSessionsRevoked: input.revokeOtherSessions },
+      ...meta,
+    }),
+  );
+  return headers;
 }
 
 /** Always succeeds; sends a new link only to an existing, unverified account. */

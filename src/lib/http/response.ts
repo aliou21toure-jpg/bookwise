@@ -6,9 +6,16 @@ export interface PageMeta {
   total: number;
 }
 
+/** For append-only logs, where an exact total is expensive: is there a next page? */
+export interface HasMoreMeta {
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
 export interface SuccessBody<T> {
   data: T;
-  meta?: PageMeta;
+  meta?: PageMeta | HasMoreMeta;
 }
 
 export interface ErrorBody {

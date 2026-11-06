@@ -14,3 +14,8 @@ export function formatDuration(minutes: number): string {
   const m = minutes % 60;
   return m ? `${h} h ${m} min` : `${h} h`;
 }
+
+/** Decimal places of a currency (CAD 2, XOF 0, KWD 3). */
+export function currencyDigits(currency: string): number {
+  return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+}

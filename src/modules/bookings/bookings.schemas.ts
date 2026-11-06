@@ -26,6 +26,9 @@ export const BookingListQuery = PageQuery.extend({
   status: z.enum(BOOKING_STATUSES).optional(),
   from: z.iso.datetime({ offset: true }).transform((v) => new Date(v)).optional(),
   to: z.iso.datetime({ offset: true }).transform((v) => new Date(v)).optional(),
+  timeframe: z.enum(["upcoming", "past"]).optional(),
+  serviceId: z.uuid().optional(),
+  q: z.string().trim().min(1).max(100).optional(),
 });
 export type BookingListQuery = z.infer<typeof BookingListQuery>;
 

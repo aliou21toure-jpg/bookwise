@@ -40,6 +40,14 @@ export type LoginBody = z.infer<typeof LoginBody>;
 
 export const EmailBody = z.strictObject({ email });
 
+export const ChangePasswordBody = z.strictObject({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: password,
+  /** Sign out every other device; this one gets a fresh session. */
+  revokeOtherSessions: z.boolean().default(true),
+});
+export type ChangePasswordBody = z.infer<typeof ChangePasswordBody>;
+
 export const ResetPasswordBody = z.strictObject({
   token: z.string().min(10).max(512),
   newPassword: password,
