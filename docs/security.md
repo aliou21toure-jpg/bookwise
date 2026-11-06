@@ -121,6 +121,23 @@ the meantime is refunded automatically and the event is flagged.
 
 ---
 
+
+### Dashboards and reviews (Phase 7, as built)
+
+- Dashboard read models run inside `withActor()`, so row-level security applies on top of
+  the explicit organization or customer filter. Provider dashboards require membership:
+  administrators who are not members, rival providers and customers get `404`, not `403`.
+- Reviews: one per `COMPLETED` booking (unique `booking_id`). The `reviews_prepare` trigger
+  copies organization, listing and service from the booking and refuses anyone but the
+  booking's customer; `reviews_guard` forbids moving a review and lets only administrators
+  hide or restore one. Public review lists show a first name and initial only.
+- Saved listings are private to their owner (FORCE RLS, `user_id = app_user_id()`); only
+  visible, published listings can be saved.
+- Password change re-checks the current password through Better Auth, signs out other
+  sessions by default, and writes `user.password_changed` to the audit log.
+- Dashboard filters are plain GET forms that never carry secrets; every write goes through the
+  JSON API with the usual origin check. Audit-log filters accept a strict action pattern only.
+
 ## 6. File uploads (listing images)
 
 1. Client requests an upload; the server checks the user is a member of the listing's

@@ -5,7 +5,7 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phase 6 of 10 built (payments).** Everything runs against a local payment
+> **Status: Phase 7 of 10 built (dashboards).** Payments run against a local payment
 > simulator that signs its webhooks exactly like Stripe; one real Stripe test-mode payment is
 > still to be run once test keys are added (see "Switching to Stripe" below).
 > Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
@@ -38,6 +38,16 @@ automated test suite.
 - Every request that creates something takes an `Idempotency-Key`, so retries never book
   twice. Unpaid holds expire through a delayed job, a one-minute sweeper, and inside the next
   booking's transaction, so the worker being down never blocks a seat.
+- **Three dashboards on real data.** Customers: overview, upcoming, history, saved listings,
+  reviews, profile and settings (including password change, which signs out other devices).
+  Providers: overview with what needs action, reservations (approve, decline, complete,
+  cancel with a reason), a weekly calendar with closures, listings, services and opening
+  hours, customers, revenue per month and per service net of refunds, and team settings.
+  Administrators: platform overview, users, providers, listing and review moderation, all
+  reservations, payments with webhook events to review, and the filterable audit log. Every
+  view has loading, empty and error states and is tested at 360, 768 and 1280 px.
+- Customers review completed bookings (one each, enforced in the database) and save listings.
+  Administrators can hide a review with a reason; hidden reviews leave public ratings.
 - PostgreSQL row-level security and guard triggers repeat every rule, so the database still
   protects tenants if application code forgets a check.
 
@@ -72,6 +82,12 @@ automated test suite.
 | `POST /api/v1/payments/create-intent` (Idempotency-Key) · `GET /api/v1/payments/:id` | The booking's customer (payments: whoever can see the booking) |
 | `POST /api/v1/payments/webhook` | Stripe (signature-verified) |
 | `POST /api/v1/admin/bookings/:id/refund` | Admins (completed bookings, with a reason) |
+| `POST /api/v1/auth/password/change` | Signed in (current password required) |
+| `POST /api/v1/bookings/:id/review` · `PATCH`, `DELETE /api/v1/reviews/:id` · `GET /api/v1/me/reviews` | The booking's customer |
+| `GET /api/v1/listings/:id/reviews` | Anyone (visible reviews and rating summary) |
+| `GET /api/v1/me/saved` · `PUT`, `DELETE /api/v1/me/saved/:listingId` · `GET /api/v1/me/overview` | Signed in |
+| `GET /api/v1/organizations/:id/dashboard` · `/revenue` · `/customers` · `/calendar` · `/audit-logs` | Organization members |
+| `GET /api/v1/admin/overview` · `/organizations` · `/listings` · `/payments` · `/audit-logs` · `/reviews` · `PATCH /api/v1/admin/reviews/:id` | Admins |
 
 Create the first administrator from the command line (there is no API for it):
 `npm run admin:create -- --email you@example.com` (the account must have confirmed its email).
