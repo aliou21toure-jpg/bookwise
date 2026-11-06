@@ -71,6 +71,20 @@
       "when": 1793891961441,
       "tag": "0009_payment_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793941571412,
+      "tag": "0010_engagement_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793941587211,
+      "tag": "0011_engagement_rls",
+      "breakpoints": true
     }
   ]
 }
