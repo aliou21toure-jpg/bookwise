@@ -8,6 +8,7 @@ import { Redis } from "ioredis";
 
 import { logger } from "@/lib/logger";
 import { capacityDrift, expireHold, sweep } from "@/modules/bookings";
+import { reconcilePayments } from "@/modules/payments";
 import { BOOKING_JOBS, QUEUES } from "./queues";
 
 const log = logger;
@@ -36,6 +37,8 @@ async function main(): Promise<void> {
             return { expired: await expireHold(String(job.data.holdId)) };
           case BOOKING_JOBS.sweep:
             return sweep();
+          case BOOKING_JOBS.reconcilePayments:
+            return reconcilePayments();
           case BOOKING_JOBS.consistency: {
             const drift = await capacityDrift();
             if (drift.length) log.error({ drift }, "slot capacity drift detected");
@@ -52,6 +55,7 @@ async function main(): Promise<void> {
   // Repeatable safety nets. upsertJobScheduler is idempotent across restarts and replicas.
   const scheduler = new Queue(QUEUES.bookings, { connection });
   await scheduler.upsertJobScheduler("bookings-sweep", { every: 60_000 }, { name: BOOKING_JOBS.sweep });
+  await scheduler.upsertJobScheduler("payments-reconcile", { every: 15 * 60_000 }, { name: BOOKING_JOBS.reconcilePayments });
   await scheduler.upsertJobScheduler("bookings-consistency", { pattern: "17 3 * * *" }, { name: BOOKING_JOBS.consistency });
 
   for (const w of workers) {

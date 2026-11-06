@@ -10,6 +10,7 @@ import { enqueueHoldExpiry } from "@/jobs/booking-queue";
 import type { PageMeta } from "@/lib/http/response";
 import { logger } from "@/lib/logger";
 import { recordAudit } from "@/modules/audit";
+import { executePaymentActions, preparePaymentEffects, type PaymentAction } from "@/modules/payments/effects";
 import type { RequestMeta } from "@/modules/audit/request-meta";
 import { requireVerifiedEmail, type AuthContext } from "@/modules/auth/session";
 import { blockedRanges, listRules } from "@/modules/availability/availability.repository";
@@ -98,6 +99,7 @@ export interface HoldResult {
  */
 export async function createHold(ctx: AuthContext, input: CreateHoldBody, idempotencyKey: string, meta: RequestMeta): Promise<HoldResult> {
   requireVerifiedEmail(ctx);
+  const releasedActions: PaymentAction[] = [];
   const result = await withActor(ctx.actor, async (tx) => {
     const claim = await claimKey(tx, ctx.user.id, idempotencyKey, "bookings.hold", requestHash("bookings.hold", input));
     if (claim.replay) return { replay: claim.replay as HoldResult };
@@ -146,7 +148,7 @@ export async function createHold(ctx: AuthContext, input: CreateHoldBody, idempo
       // Free capacity held by expired holds right now, under the lock, so correctness never
       // depends on the expiry job running on time.
       for (const expired of await repo.expiredActiveHoldsOnSlot(tx, slot.id)) {
-        await expireHoldLocked(tx, expired.holdId, slot.id, meta);
+        await expireHoldLocked(tx, expired.holdId, slot.id, meta, releasedActions);
       }
 
       const after = await repo.adjustReserved(tx, slot.id, input.quantity);
@@ -173,6 +175,7 @@ export async function createHold(ctx: AuthContext, input: CreateHoldBody, idempo
   });
 
   if (result.replay) return result.replay;
+  await executePaymentActions(releasedActions);
   // After COMMIT: a lost job is harmless (the sweeper and the next hold release it too).
   await scheduleHoldExpiry(result.holdId, result.expiresAt).catch((err) => logger.warn({ err }, "could not enqueue hold expiry"));
   return result.response;
@@ -205,7 +208,7 @@ async function apply(
   booking: repo.BookingRow,
   event: BookingEvent,
   kind: ActorKind,
-  opts: { reason?: string | null; meta?: RequestMeta; now?: Date } = {},
+  opts: { reason?: string | null; meta?: RequestMeta; now?: Date; capacityAvailable?: boolean; actions?: PaymentAction[] } = {},
 ): Promise<repo.BookingRow> {
   const now = opts.now ?? new Date();
   const hold = await repo.findHoldForBooking(tx, booking.id);
@@ -222,11 +225,18 @@ async function apply(
       cancellationWindowHours: svc.cancellationWindowHours,
     },
     event,
-    { actor: kind, now },
+    { actor: kind, now, capacityAvailable: opts.capacityAvailable },
   );
   if (!decision.ok) throw new AppError(decision.code, decision.message);
 
   await applyCapacityEffects(tx, booking, hold, decision.effects);
+  if (decision.effects.includes("reacquire_capacity")) {
+    // Late payment: the caller checked room under the slot lock; take the seats back.
+    const slotId = await repo.slotIdForBooking(tx, booking.id);
+    await elevated(tx, async () => {
+      if (!slotId || (await repo.adjustReserved(tx, slotId, booking.quantity)) === null) throw new Error("capacity vanished under the slot lock");
+    });
+  }
 
   const patch: Parameters<typeof repo.updateBooking>[2] = { status: decision.to };
   if (decision.effects.includes("set_approval_deadline")) {
@@ -238,8 +248,10 @@ async function apply(
   if (decision.to === "EXPIRED") patch.expiredAt = now;
   const updated = decision.to === booking.status && !patch.approvalDeadline ? booking : await repo.updateBooking(tx, booking.id, patch);
 
-  // Payment effects (capture, void, refund, cancel PaymentIntent) arrive with Stripe in
-  // Phase 6, and notifications with the email worker in Phase 8.
+  // Payment effects: rows now, provider calls after COMMIT (see payments/effects.ts).
+  // Notifications arrive with the email worker in Phase 8.
+  const actions = await preparePaymentEffects(tx, updated, decision.effects, kind, opts.reason ?? event.toLowerCase().replace(/_/g, " "));
+  opts.actions?.push(...actions);
   await recordAudit(tx, actor, {
     action: `booking.${event.toLowerCase()}`,
     entityType: "booking",
@@ -295,7 +307,7 @@ export async function checkout(ctx: AuthContext, input: CheckoutBody, idempotenc
     if (!booking || booking.customerId !== ctx.user.id) throw notFound("Booking");
     if (input.note !== undefined) await repo.updateBooking(tx, booking.id, { customerNote: input.note });
     if (booking.totalMinor > 0) {
-      throw new AppError("PAYMENT_REQUIRED", "This booking needs payment. Card payments open in the next release.");
+      throw new AppError("PAYMENT_REQUIRED", "This booking needs payment: start it with POST /api/v1/payments/create-intent.");
     }
     const updated = await apply(tx, ctx.actor, booking, "FREE_CHECKOUT", "customer", { meta });
     const [dto] = await toDtos(tx, [updated], { userId: ctx.user.id, staffOf: () => false });
@@ -306,24 +318,35 @@ export async function checkout(ctx: AuthContext, input: CheckoutBody, idempotenc
 }
 
 export async function cancelBooking(ctx: AuthContext, id: string, reason: string | null, meta: RequestMeta): Promise<BookingDto> {
-  return withActor(ctx.actor, async (tx) => {
+  const actions: PaymentAction[] = [];
+  const dto = await withActor(ctx.actor, async (tx) => {
     const booking = await lockForTransition(tx, id);
     const kind = await actorKindFor(tx, ctx, booking);
     const event: BookingEvent = kind === "customer" ? "CUSTOMER_CANCEL" : kind === "member" ? "PROVIDER_CANCEL" : "ADMIN_CANCEL";
     if (kind !== "customer" && !reason) throw new AppError("VALIDATION_FAILED", "Give the customer a reason.", [{ path: "reason", message: "Required" }]);
-    const updated = await apply(tx, ctx.actor, booking, event, kind, { reason, meta });
+    const updated = await apply(tx, ctx.actor, booking, event, kind, { reason, meta, actions });
     return (await toDtos(tx, [updated], { userId: ctx.user.id, staffOf: () => kind !== "customer" }))[0]!;
   });
+  await executePaymentActions(actions);
+  return dto;
 }
 
 async function providerAction(ctx: AuthContext, id: string, event: "PROVIDER_APPROVE" | "PROVIDER_REJECT" | "COMPLETE", reason: string | null, meta: RequestMeta): Promise<BookingDto> {
-  return withActor(ctx.actor, async (tx) => {
+  const actions: PaymentAction[] = [];
+  await withActor(ctx.actor, async (tx) => {
     const booking = await lockForTransition(tx, id);
     const kind = await actorKindFor(tx, ctx, booking);
     if (kind === "customer") throw new AppError("FORBIDDEN", "Only the provider can do that.");
-    const updated = await apply(tx, ctx.actor, booking, event, kind, { reason, meta });
-    return (await toDtos(tx, [updated], { userId: ctx.user.id, staffOf: () => true }))[0]!;
+    await apply(tx, ctx.actor, booking, event, kind, { reason, meta, actions });
   });
+  try {
+    // Approving a paid request captures the authorized payment; the booking is confirmed
+    // by the provider's payment_intent.succeeded webhook.
+    await executePaymentActions(actions, { throwOnError: event === "PROVIDER_APPROVE" });
+  } catch {
+    throw new AppError("SERVICE_UNAVAILABLE", "The payment provider did not respond. Try approving again.");
+  }
+  return getBooking(ctx, id);
 }
 
 export const approveBooking = (ctx: AuthContext, id: string, meta: RequestMeta) => providerAction(ctx, id, "PROVIDER_APPROVE", null, meta);
@@ -363,7 +386,7 @@ export async function listBookings(ctx: AuthContext, query: BookingListQuery, sc
 // ---------------------------------------------------------------------------------------
 
 /** Caller must hold the slot lock and run elevated. */
-async function expireHoldLocked(tx: Tx, holdId: string, slotId: string, meta?: RequestMeta): Promise<boolean> {
+async function expireHoldLocked(tx: Tx, holdId: string, slotId: string, meta?: RequestMeta, actions?: PaymentAction[]): Promise<boolean> {
   const hold = await repo.findHold(tx, holdId, { forUpdate: true });
   if (!hold || hold.status !== "active" || hold.slotId !== slotId || hold.expiresAt.getTime() > Date.now()) return false;
   const booking = await repo.findBooking(tx, hold.bookingId, { forUpdate: true });
@@ -371,7 +394,7 @@ async function expireHoldLocked(tx: Tx, holdId: string, slotId: string, meta?: R
     await repo.setHoldStatus(tx, hold.id, "released"); // stray hold: nothing else to undo
     return false;
   }
-  await apply(tx, SYSTEM, booking, "HOLD_EXPIRED", "system", { meta });
+  await apply(tx, SYSTEM, booking, "HOLD_EXPIRED", "system", { meta, actions });
   return true;
 }
 
@@ -380,21 +403,27 @@ async function expireHoldLocked(tx: Tx, holdId: string, slotId: string, meta?: R
  * was already converted, released or is not due yet.
  */
 export async function expireHold(holdId: string): Promise<boolean> {
-  return withActor(SYSTEM, async (tx) => {
+  const actions: PaymentAction[] = [];
+  const expired = await withActor(SYSTEM, async (tx) => {
     const hold = await repo.findHold(tx, holdId);
     if (!hold) return false;
     await repo.lockSlot(tx, hold.slotId);
-    return expireHoldLocked(tx, holdId, hold.slotId);
+    return expireHoldLocked(tx, holdId, hold.slotId, undefined, actions);
   });
+  await executePaymentActions(actions); // cancel the unpaid PaymentIntent
+  return expired;
 }
 
 async function timeoutApproval(bookingId: string): Promise<boolean> {
-  return withActor(SYSTEM, async (tx) => {
+  const actions: PaymentAction[] = [];
+  const done = await withActor(SYSTEM, async (tx) => {
     const booking = await lockForTransition(tx, bookingId);
     if (booking.status !== "AWAITING_APPROVAL" || !booking.approvalDeadline || booking.approvalDeadline.getTime() > Date.now()) return false;
-    await apply(tx, SYSTEM, booking, "APPROVAL_TIMEOUT", "system", { reason: "The provider did not respond in time." });
+    await apply(tx, SYSTEM, booking, "APPROVAL_TIMEOUT", "system", { reason: "The provider did not respond in time.", actions });
     return true;
   });
+  await executePaymentActions(actions); // void the card authorization
+  return done;
 }
 
 /** Periodic safety net: expires due holds and stale approval requests. */
@@ -410,4 +439,47 @@ export async function sweep(limit = 200): Promise<{ holdsExpired: number; approv
 /** Slots whose reserved_count disagrees with holds and bookings (should always be empty). */
 export async function capacityDrift() {
   return withActor(SYSTEM, (tx) => repo.capacityDrift(tx));
+}
+
+// ---------------------------------------------------------------------------------------
+// Payment events (called by the webhook handler, in the system context)
+// ---------------------------------------------------------------------------------------
+
+export interface PaymentEventResult {
+  before: repo.BookingRow["status"];
+  after: repo.BookingRow["status"];
+  actions: PaymentAction[];
+}
+
+/**
+ * Apply a verified payment event to its booking inside the webhook's transaction. For a
+ * late payment (booking EXPIRED) the slot is locked first and its remaining room decides
+ * between re-confirming and refunding (docs/booking-lifecycle.md §5).
+ */
+export async function applyPaymentEvent(
+  tx: Tx,
+  bookingId: string,
+  event: "PAYMENT_SUCCEEDED" | "PAYMENT_AUTHORIZED" | "PAYMENT_FAILED" | "REFUND_SUCCEEDED",
+): Promise<PaymentEventResult> {
+  const booking = await lockForTransition(tx, bookingId);
+  let capacityAvailable: boolean | undefined;
+  if (booking.status === "EXPIRED" && event === "PAYMENT_SUCCEEDED") {
+    const slotId = await repo.slotIdForBooking(tx, booking.id);
+    const slot = slotId ? await repo.lockSlot(tx, slotId) : undefined;
+    capacityAvailable = !!slot && slot.status === "open" && slot.capacity - slot.reservedCount >= booking.quantity;
+  }
+  const actions: PaymentAction[] = [];
+  const updated = await apply(tx, SYSTEM, booking, event, "system", { capacityAvailable, actions, reason: capacityAvailable === false ? "Paid after the hold expired and the time was taken." : null });
+  return { before: booking.status, after: updated.status, actions };
+}
+
+/** COMPLETED bookings can only be refunded by an administrator, with a reason. */
+export async function adminRefund(ctx: AuthContext, id: string, reason: string, meta: RequestMeta): Promise<BookingDto> {
+  const actions: PaymentAction[] = [];
+  await withActor(ctx.actor, async (tx) => {
+    const booking = await lockForTransition(tx, id);
+    await apply(tx, ctx.actor, booking, "ADMIN_REFUND", "admin", { reason, meta, actions });
+  });
+  await executePaymentActions(actions);
+  return getBooking(ctx, id);
 }

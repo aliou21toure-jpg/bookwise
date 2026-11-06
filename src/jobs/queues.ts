@@ -13,4 +13,6 @@ export const BOOKING_JOBS = {
   sweep: "bookings.sweep",
   /** Daily: report slots whose reserved_count disagrees with holds and bookings. */
   consistency: "bookings.consistency",
+  /** Every 15 minutes: resend unsent refunds, cancel dead PaymentIntents, sync stale ones. */
+  reconcilePayments: "payments.reconcile",
 } as const;
