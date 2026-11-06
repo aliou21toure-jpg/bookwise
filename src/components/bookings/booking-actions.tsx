@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/auth/use-hydrated";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { PaymentPanel } from "./payment-panel";
 
 interface Props {
   bookingId: string;
+  totalLabel: string;
   status: string;
   free: boolean;
   holdExpiresAt: string | null;
@@ -39,7 +41,7 @@ async function post(path: string, body: unknown, idempotent = false) {
   return res.ok ? null : ((json.error?.message as string | undefined) ?? "Something went wrong. Try again.");
 }
 
-export function BookingActions({ bookingId, status, free, holdExpiresAt, canCancel }: Props) {
+export function BookingActions({ bookingId, totalLabel, status, free, holdExpiresAt, canCancel }: Props) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, setPending] = useState<"confirm" | "cancel" | null>(null);
@@ -70,9 +72,7 @@ export function BookingActions({ bookingId, status, free, holdExpiresAt, canCanc
           )}
         </p>
       )}
-      {status === "PENDING_PAYMENT" && !free && !expired && (
-        <Alert>Card payment opens in the next release. You can cancel this hold or let it expire.</Alert>
-      )}
+      {status === "PENDING_PAYMENT" && !free && !expired && <PaymentPanel bookingId={bookingId} totalLabel={totalLabel} />}
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap gap-3">
         {status === "PENDING_PAYMENT" && free && !expired && (

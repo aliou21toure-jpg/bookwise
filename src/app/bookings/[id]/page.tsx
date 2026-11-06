@@ -72,6 +72,7 @@ export default async function BookingPage({ params }: PageProps<"/bookings/[id]"
 
       <BookingActions
         bookingId={booking.id}
+        totalLabel={formatMoney(booking.price.totalMinor, booking.price.currency)}
         status={booking.status}
         free={booking.price.totalMinor === 0}
         holdExpiresAt={booking.holdExpiresAt ? booking.holdExpiresAt.toISOString() : null}
