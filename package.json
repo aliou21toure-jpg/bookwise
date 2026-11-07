@@ -18,7 +18,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:migrate:test": "tsx --env-file=.env.test scripts/migrate.ts",
-    "admin:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/admin-create.ts"
+    "admin:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/admin-create.ts",
+    "seed:demo": "MAIL_TRANSPORT=memory RATE_LIMITS=false LOG_LEVEL=warn tsx --conditions=react-server --env-file-if-exists=.env.local scripts/seed-demo.ts",
+    "openapi": "tsx --conditions=react-server scripts/openapi.ts"
   },
   "dependencies": {
     "@date-fns/tz": "1.5.0",

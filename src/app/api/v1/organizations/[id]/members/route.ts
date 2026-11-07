@@ -3,7 +3,7 @@ import { requestMeta } from "@/modules/audit/request-meta";
 import { requireUser } from "@/modules/auth";
 import { AddMemberBody, OrgParams, addMember, listMembers } from "@/modules/organizations";
 
-/** GET /api/v1/organizations/:id/members */
+/** GET /api/v1/organizations/:id/members — the team, with roles (members). */
 export const GET = defineRoute({ params: OrgParams }, async ({ request, params }) => {
   const ctx = await requireUser(request);
   return { data: await listMembers(ctx, params.id) };

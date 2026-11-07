@@ -50,8 +50,16 @@ export default function HomePage() {
             <Link href="/sign-up?type=provider">List your business</Link>
           </Button>
         </div>
-        <p id="coming-soon" className="text-sm text-muted-foreground">
-          Browse listings and live availability today. Online booking opens in the next release.
+        <p className="text-sm text-muted-foreground">
+          Book, pay and manage reservations online. Developers can read the{" "}
+          <Link href="/docs/api" className="underline underline-offset-4">
+            API reference
+          </Link>{" "}
+          or the{" "}
+          <a href="https://github.com/aliou21toure-jpg/bookwise" className="underline underline-offset-4">
+            source code
+          </a>
+          .
         </p>
       </section>
 

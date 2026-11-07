@@ -42,7 +42,7 @@ async function NextTimes({ service, timeZone, listingId }: { service: ServiceDto
   const { slots } = await getAvailability(null, { serviceId: service.id, from, to: new Date(from.getTime() + 14 * 86_400_000) });
   const open = slots.filter((s) => s.remaining > 0).slice(0, 6);
   if (open.length === 0) return <p className="text-sm text-muted-foreground">No open times in the next two weeks.</p>;
-  const format = new Intl.DateTimeFormat("en-CA", { timeZone, weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const format = new Intl.DateTimeFormat("en-CA", { timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return (
     <SlotPicker
       serviceId={service.id}

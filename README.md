@@ -5,10 +5,19 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phases 1–9 of 10 built.** Emails run against a local mailbox until a Resend account is added (see "Switching to Resend" below). Payments run against a local payment
-> simulator that signs its webhooks exactly like Stripe; one real Stripe test-mode payment is
-> still to be run once test keys are added (see "Switching to Stripe" below).
-> Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
+> **Status: Phases 1–9 of 10 built; Phase 10 (production) in progress.** Everything runs
+> locally today. Emails go to a local mailbox and payments to a local simulator that signs its
+> webhooks exactly like Stripe; switching to Resend and Stripe test mode is configuration only
+> (see below). Deployment is described in [docs/deployment.md](docs/deployment.md).
+
+![Booking a time: pick a slot, it is held for 10 minutes, confirm](docs/images/booking-flow.gif)
+
+| | |
+|---|---|
+| ![Search results](docs/images/search.png) | ![A listing with its next open times](docs/images/listing.png) |
+| Search, in the provider's time zone | Next open times per service |
+| ![Provider dashboard](docs/images/provider-dashboard.png) | ![Administration overview](docs/images/admin-overview.png) |
+| Provider dashboard | Platform administration |
 
 ## What works today
 
@@ -63,41 +72,12 @@ automated test suite.
 
 ### API (v1)
 
-| Method and path | Who |
-|---|---|
-| `POST /api/v1/auth/register` | Anyone (customer, or provider with an organization) |
-| `POST /api/v1/auth/login` · `POST /api/v1/auth/logout` | Anyone |
-| `GET`, `PATCH /api/v1/auth/me` | Signed in |
-| `POST /api/v1/auth/password/forgot` · `POST /api/v1/auth/password/reset` | Anyone |
-| `POST /api/v1/auth/verification/resend` | Anyone |
-| `GET`, `POST /api/v1/organizations` | Signed in |
-| `GET`, `PATCH /api/v1/organizations/:id` | Members (read), owners (edit) |
-| `GET`, `POST /api/v1/organizations/:id/members` · `DELETE …/members/:userId` | Members (read), owners (manage) |
-| `GET /api/v1/admin/users` · `PATCH /api/v1/admin/users/:id/status` | Admins |
-| `PATCH /api/v1/admin/organizations/:id/status` | Admins |
-| `GET /api/v1/listings` (search) · `GET /api/v1/listings/:id` | Anyone (drafts: members) |
-| `POST /api/v1/listings` · `PATCH`, `DELETE /api/v1/listings/:id` | Organization members |
-| `POST /api/v1/listings/:id/services` · `PATCH`, `DELETE /api/v1/services/:id` | Organization members |
-| `POST /api/v1/listings/:id/images` · `DELETE …/images/:imageId` | Organization members |
-| `GET /api/v1/availability?serviceId=&from=&to=` | Anyone (slots) |
-| `POST /api/v1/availability` · `PATCH`, `DELETE /api/v1/availability/:id` · `GET /api/v1/availability/rules` | Organization members |
-| `GET`, `POST /api/v1/unavailable-periods` · `DELETE /api/v1/unavailable-periods/:id` | Organization members |
-| `GET /api/v1/organizations/:id/listings` | Organization members |
-| `PATCH /api/v1/admin/listings/:id/status` | Admins |
-| `POST /api/v1/bookings/holds` (Idempotency-Key) | Signed-in customers |
-| `POST /api/v1/bookings` (checkout, Idempotency-Key) · `GET /api/v1/bookings` · `GET /api/v1/bookings/:id` | Customer, provider members, admins |
-| `POST /api/v1/bookings/:id/cancel` | Customer (inside policy), provider or admin (with a reason) |
-| `POST /api/v1/bookings/:id/approve` · `/reject` · `/complete` | Provider members |
-| `GET /api/v1/admin/bookings` | Admins |
-| `POST /api/v1/payments/create-intent` (Idempotency-Key) · `GET /api/v1/payments/:id` | The booking's customer (payments: whoever can see the booking) |
-| `POST /api/v1/payments/webhook` | Stripe (signature-verified) |
-| `POST /api/v1/admin/bookings/:id/refund` | Admins (completed bookings, with a reason) |
-| `POST /api/v1/auth/password/change` | Signed in (current password required) |
-| `POST /api/v1/bookings/:id/review` · `PATCH`, `DELETE /api/v1/reviews/:id` · `GET /api/v1/me/reviews` | The booking's customer |
-| `GET /api/v1/listings/:id/reviews` | Anyone (visible reviews and rating summary) |
-| `GET /api/v1/me/saved` · `PUT`, `DELETE /api/v1/me/saved/:listingId` · `GET /api/v1/me/overview` | Signed in |
-| `GET /api/v1/organizations/:id/dashboard` · `/revenue` · `/customers` · `/calendar` · `/audit-logs` | Organization members |
-| `GET /api/v1/admin/overview` · `/organizations` · `/listings` · `/payments` · `/audit-logs` · `/reviews` · `PATCH /api/v1/admin/reviews/:id` | Admins |
+63 REST endpoints, documented from the same Zod schemas that validate them: browse the
+reference at `/docs/api` when the app is running, or load `/api/v1/openapi.json` (OpenAPI 3.1)
+into any client. `npm run openapi` regenerates it, and a test fails if the committed copy is
+out of date.
+
+![API reference page](docs/images/api-reference.png)
 
 Create the first administrator from the command line (there is no API for it):
 `npm run admin:create -- --email you@example.com` (the account must have confirmed its email).
@@ -110,6 +90,8 @@ Create the first administrator from the command line (there is no API for it):
 | [Booking lifecycle](docs/booking-lifecycle.md) | State machine, transition rules, late payments, idempotency |
 | [Database design](docs/database-design.md) | Entity relationships, tables, constraints, inventory integrity, RLS |
 | [Security model](docs/security.md) | Threats, authentication, authorization matrix, payments, uploads, test plan |
+| [Performance](docs/performance.md) | Query plans and timings at 120,000 bookings |
+| [Deployment](docs/deployment.md) | Render + Upstash setup, zero-downtime deploys, backups, recovery drills |
 | [Roadmap](docs/roadmap.md) | Ten phases with exit criteria and test targets |
 | [Decision records](docs/adr) | Why the main choices were made |
 
@@ -134,6 +116,10 @@ npm run worker:dev                            # background worker, in a second t
 ```
 
 Everything in containers instead: `docker compose --profile app up --build`.
+
+**Demo data:** `npm run seed:demo` on an empty database creates three providers (Toronto,
+Montreal, Vancouver), two customers with confirmed bookings, and an administrator, all through
+the real API handlers. It prints the accounts; they share one demo password.
 
 ## Switching to Stripe
 

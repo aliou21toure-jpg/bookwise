@@ -1,0 +1,105 @@
+# Render Blueprint: the web app, the background worker and PostgreSQL. Redis comes from
+# Upstash (set REDIS_URL by hand). Full walkthrough: docs/deployment.md.
+#
+# Values marked `sync: false` are asked for when the Blueprint is first applied and are never
+# stored in this file (Render does not allow them inside an environment group, so the secrets
+# are listed on each service). DATABASE_URL must use the bookwise_app role, created once with
+# scripts/db/create-roles.sql (see the guide); the database's own user is only for migrations.
+
+databases:
+  - name: bookwise-db
+    databaseName: bookwise
+    user: bookwise_owner
+    plan: 0.1c-256mb
+    postgresMajorVersion: "17"
+    ipAllowList: [] # reachable from Render services only
+
+envVarGroups:
+  - name: bookwise-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: REQUIRE_EMAIL_VERIFICATION
+        value: "true"
+      - key: RATE_LIMITS
+        value: "true"
+      - key: MAIL_TRANSPORT
+        value: resend
+      - key: PAYMENT_PROVIDER
+        value: stripe
+
+services:
+  - type: web
+    name: bookwise-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: 0.5c-512mb
+    region: oregon
+    healthCheckPath: /api/v1/health
+    # Migrations run as the schema owner before each deploy goes live; a failure stops the
+    # deploy and the previous version keeps serving.
+    preDeployCommand: node worker/migrate.mjs
+    envVars:
+      - fromGroup: bookwise-shared
+      # Secrets, entered once in the dashboard:
+      - key: APP_URL
+        sync: false # e.g. https://bookwise.onrender.com
+      - key: DATABASE_URL
+        sync: false # postgres://bookwise_app:…@<internal host>/bookwise
+      - key: REDIS_URL
+        sync: false # rediss://default:…@<name>.upstash.io:6379
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false # BookWise <bookings@mail.your-domain>
+      - key: STRIPE_SECRET_KEY
+        sync: false # sk_test_… (live keys are refused at start-up)
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: DATABASE_MIGRATION_URL
+        fromDatabase:
+          name: bookwise-db
+          property: connectionString
+      - key: MIGRATIONS_DIR
+        value: worker/migrations
+      - key: UPLOADS_DIR
+        value: /app/data/uploads
+    disk:
+      name: uploads
+      mountPath: /app/data/uploads
+      sizeGB: 1
+
+  - type: worker
+    name: bookwise-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node worker/worker.mjs
+    plan: 0.5c-512mb
+    region: oregon
+    envVars:
+      - fromGroup: bookwise-shared
+      # Secrets, entered once in the dashboard:
+      - key: APP_URL
+        sync: false # e.g. https://bookwise.onrender.com
+      - key: DATABASE_URL
+        sync: false # postgres://bookwise_app:…@<internal host>/bookwise
+      - key: REDIS_URL
+        sync: false # rediss://default:…@<name>.upstash.io:6379
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false # BookWise <bookings@mail.your-domain>
+      - key: STRIPE_SECRET_KEY
+        sync: false # sk_test_… (live keys are refused at start-up)
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: BOOKWISE_SERVICE
+        value: worker

@@ -42,6 +42,7 @@ const modules = import.meta.glob<Record<string, unknown>>("../../src/app/api/v1/
 /** Routes anyone may call. Everything else must answer 401 to an anonymous caller. */
 const PUBLIC = new Set([
   "GET /health",
+  "GET /openapi.json",
   "GET /listings",
   "GET /listings/[id]",
   "GET /listings/[id]/reviews",

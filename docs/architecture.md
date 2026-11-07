@@ -311,9 +311,9 @@ flowchart TB
         ml[Mailpit for email preview]
     end
     subgraph Prod["Production"]
-        V[Vercel: web + API + webhook] --- PG[(Managed PostgreSQL 17)]
-        V --- RD[(Managed Redis, TLS)]
-        WK[Worker container] --- PG
+        V[Render web service: web + API + webhook] --- PG[(Render PostgreSQL 17)]
+        V --- RD[(Upstash Redis, TLS)]
+        WK[Render worker, same image] --- PG
         WK --- RD
     end
 ```
@@ -327,6 +327,12 @@ cannot host a BullMQ worker. The worker must run as a long-lived container. Opti
 | Run worker only in Docker Compose; in production, Vercel Cron calls `/api/internal/cron/sweep` every minute | Free | Hold expiry and reconciliation still work (DB-driven); email/reminder jobs run in the sweep instead of BullMQ in production |
 
 **Decision:** option 1 (Render or Railway). Option 2 remains a documented fallback.
+
+**Update (Phase 10):** the web app runs on Render too, from the same image as the worker, so
+one Blueprint ([`render.yaml`](../render.yaml)) describes everything and uploaded images can
+live on a persistent disk. Running the web app on Vercel instead needs only object storage for
+images behind `src/lib/storage.ts`. Step-by-step setup, backups and recovery:
+[deployment.md](deployment.md).
 
 **Managed services you will need accounts for** (all have free tiers): Stripe (test mode),
 Resend (with a verified sending domain, for example `mail.sadiatoure.dev`), Sentry, a managed

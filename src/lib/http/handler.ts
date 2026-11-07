@@ -58,7 +58,7 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
   options: RouteOptions<TBody, TQuery, TParams>,
   handler: (ctx: HandlerContext<TBody, TQuery, TParams>) => Promise<HandlerResult<TResult> | Response>,
 ) {
-  return async (request: Request, routeContext?: RouteContextArg): Promise<Response> => {
+  const route = async (request: Request, routeContext?: RouteContextArg): Promise<Response> => {
     const started = performance.now();
     // Reading request headers first also tells Next.js (Cache Components) that this
     // handler is request-time and must never be prerendered.
@@ -114,6 +114,9 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
       log.info({ status, durationMs: Math.round(performance.now() - started) }, "request");
     }
   };
+  // The options travel with the handler so scripts/openapi.ts can document every route from
+  // the same schemas that validate it.
+  return Object.assign(route, { options });
 }
 
 function hasSessionCookie(request: Request): boolean {

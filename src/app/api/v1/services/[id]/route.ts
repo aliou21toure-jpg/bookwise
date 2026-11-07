@@ -3,7 +3,7 @@ import { requestMeta } from "@/modules/audit/request-meta";
 import { requireUser } from "@/modules/auth";
 import { IdParams, UpdateServiceBody, archiveService, updateService } from "@/modules/listings";
 
-/** PATCH /api/v1/services/:id */
+/** PATCH /api/v1/services/:id — change price, duration, capacity or policy (members). */
 export const PATCH = defineRoute({ params: IdParams, body: UpdateServiceBody }, async ({ request, requestId, params, body }) => {
   const ctx = await requireUser(request);
   return { data: await updateService(ctx, params.id, body, requestMeta(request, requestId)) };
