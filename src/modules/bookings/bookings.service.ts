@@ -10,6 +10,7 @@ import { enqueueHoldExpiry } from "@/jobs/booking-queue";
 import type { PageMeta } from "@/lib/http/response";
 import { logger } from "@/lib/logger";
 import { recordAudit } from "@/modules/audit";
+import { queueBookingNotifications } from "@/modules/notifications/notifications.service";
 import { executePaymentActions, preparePaymentEffects, type PaymentAction } from "@/modules/payments/effects";
 import type { RequestMeta } from "@/modules/audit/request-meta";
 import { requireVerifiedEmail, type AuthContext } from "@/modules/auth/session";
@@ -249,9 +250,10 @@ async function apply(
   const updated = decision.to === booking.status && !patch.approvalDeadline ? booking : await repo.updateBooking(tx, booking.id, patch);
 
   // Payment effects: rows now, provider calls after COMMIT (see payments/effects.ts).
-  // Notifications arrive with the email worker in Phase 8.
   const actions = await preparePaymentEffects(tx, updated, decision.effects, kind, opts.reason ?? event.toLowerCase().replace(/_/g, " "));
   opts.actions?.push(...actions);
+  // Emails go into the outbox in this same transaction; the worker delivers them.
+  await queueBookingNotifications(tx, booking.id, booking.status, decision.to, event, opts.reason ?? null);
   await recordAudit(tx, actor, {
     action: `booking.${event.toLowerCase()}`,
     entityType: "booking",

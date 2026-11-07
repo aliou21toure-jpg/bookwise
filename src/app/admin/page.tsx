@@ -17,7 +17,7 @@ export default async function AdminOverviewPage() {
   const ctx = await pageAdmin("/admin");
   const o = await adminOverview(ctx);
   const s = o.stats;
-  const needs = s.listingsUnderReview + s.flaggedEvents + s.failedRefunds;
+  const needs = s.listingsUnderReview + s.flaggedEvents + s.failedRefunds + s.failedNotifications;
 
   return (
     <>
@@ -30,6 +30,7 @@ export default async function AdminOverviewPage() {
               s.listingsUnderReview && `${s.listingsUnderReview} listing(s) under review`,
               s.flaggedEvents && `${s.flaggedEvents} flagged payment event(s)`,
               s.failedRefunds && `${s.failedRefunds} failed refund(s)`,
+              s.failedNotifications && `${s.failedNotifications} email(s) that could not be delivered`,
             ]
               .filter(Boolean)
               .join(" · ")}

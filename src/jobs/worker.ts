@@ -1,6 +1,7 @@
 /**
  * Background worker entry point (a separate long-running process; see ADR-005).
- * Runs hold expiry, the minute-by-minute sweeper and the daily capacity check. Every
+ * Runs hold expiry, the sweeper, payment reconciliation, email delivery from the
+ * notification outbox, reminders and the daily capacity check. Every
  * handler is idempotent: it re-reads the database and does nothing if work is already done.
  */
 import { Queue, Worker } from "bullmq";
@@ -8,6 +9,7 @@ import { Redis } from "ioredis";
 
 import { logger } from "@/lib/logger";
 import { capacityDrift, expireHold, sweep } from "@/modules/bookings";
+import { dispatchNotifications, queueReminders } from "@/modules/notifications";
 import { reconcilePayments } from "@/modules/payments";
 import { BOOKING_JOBS, QUEUES } from "./queues";
 
@@ -39,6 +41,10 @@ async function main(): Promise<void> {
             return sweep();
           case BOOKING_JOBS.reconcilePayments:
             return reconcilePayments();
+          case BOOKING_JOBS.dispatchNotifications:
+            return dispatchNotifications();
+          case BOOKING_JOBS.queueReminders:
+            return queueReminders();
           case BOOKING_JOBS.consistency: {
             const drift = await capacityDrift();
             if (drift.length) log.error({ drift }, "slot capacity drift detected");
@@ -56,6 +62,8 @@ async function main(): Promise<void> {
   const scheduler = new Queue(QUEUES.bookings, { connection });
   await scheduler.upsertJobScheduler("bookings-sweep", { every: 60_000 }, { name: BOOKING_JOBS.sweep });
   await scheduler.upsertJobScheduler("payments-reconcile", { every: 15 * 60_000 }, { name: BOOKING_JOBS.reconcilePayments });
+  await scheduler.upsertJobScheduler("notifications-dispatch", { every: 10_000 }, { name: BOOKING_JOBS.dispatchNotifications, opts: { removeOnComplete: 100, removeOnFail: 500 } });
+  await scheduler.upsertJobScheduler("notifications-reminders", { every: 15 * 60_000 }, { name: BOOKING_JOBS.queueReminders });
   await scheduler.upsertJobScheduler("bookings-consistency", { pattern: "17 3 * * *" }, { name: BOOKING_JOBS.consistency });
 
   for (const w of workers) {

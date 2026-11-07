@@ -15,4 +15,8 @@ export const BOOKING_JOBS = {
   consistency: "bookings.consistency",
   /** Every 15 minutes: resend unsent refunds, cancel dead PaymentIntents, sync stale ones. */
   reconcilePayments: "payments.reconcile",
+  /** Every 10 seconds: deliver due emails from the notification outbox. */
+  dispatchNotifications: "notifications.dispatch",
+  /** Every 15 minutes: queue a reminder for bookings starting within 24 hours. */
+  queueReminders: "notifications.reminders",
 } as const;

@@ -308,7 +308,8 @@ export async function platformStats(tx: Tx) {
            (select count(*) from bookwise.bookings where status in ('CANCELLED', 'REFUNDED') and cancelled_at >= now() - interval '30 days') as cancelled_30d,
            (select count(*) from bookwise.payment_events where outcome = 'flagged') as flagged_events,
            (select count(*) from bookwise.refunds where status = 'pending') as pending_refunds,
-           (select count(*) from bookwise.refunds where status = 'failed') as failed_refunds`);
+           (select count(*) from bookwise.refunds where status = 'failed') as failed_refunds,
+           (select count(*) from bookwise.notifications where status = 'failed') as failed_notifications`);
   const r = rows[0] ?? {};
   return {
     users: n(r.users),
@@ -324,6 +325,7 @@ export async function platformStats(tx: Tx) {
     flaggedEvents: n(r.flagged_events),
     pendingRefunds: n(r.pending_refunds),
     failedRefunds: n(r.failed_refunds),
+    failedNotifications: n(r.failed_notifications),
   };
 }
 
