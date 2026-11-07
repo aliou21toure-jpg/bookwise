@@ -28,6 +28,9 @@ export const ServerEnvSchema = z.object({
   // Payments: `stripe` (test-mode keys) or `fake`, a local simulator that signs its webhooks
   // exactly like Stripe. The simulator is refused unless APP_URL is a local address.
   PAYMENT_PROVIDER: z.enum(["stripe", "fake"]).default("fake"),
+  // Per-IP and per-session request limits (docs/security.md §7). Only end-to-end runs, which
+  // create many accounts from one address, turn them off.
+  RATE_LIMITS: bool.default(true),
   STRIPE_SECRET_KEY: z
     .string()
     .regex(/^(sk|rk)_test_[A-Za-z0-9]+$/, "Use a Stripe test-mode key (sk_test_… or rk_test_…)")

@@ -9,7 +9,7 @@ const MAX_BYTES = 512 * 1024;
  * POST /api/v1/payments/webhook — Stripe events. Authenticated by the Stripe-Signature
  * header over the exact raw body (so there is no Origin check and no JSON parsing first).
  */
-export const POST = defineRoute({ skipOriginCheck: true }, async ({ request, requestId }) => {
+export const POST = defineRoute({ public: true, skipOriginCheck: true, rateLimit: false }, async ({ request, requestId }) => {
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BYTES) throw new AppError("PAYLOAD_TOO_LARGE", "Webhook body too large.");
   const rawBody = await request.text();
   if (rawBody.length > MAX_BYTES) throw new AppError("PAYLOAD_TOO_LARGE", "Webhook body too large.");

@@ -4,7 +4,7 @@ import { optionalUser, requireUser } from "@/modules/auth";
 import { CreateListingBody, SearchQuery, createListing, searchListings } from "@/modules/listings";
 
 /** GET /api/v1/listings — public search: q, category, city, minPrice, maxPrice, sort, page. */
-export const GET = defineRoute({ query: SearchQuery }, async ({ request, query }) => {
+export const GET = defineRoute({ public: true, query: SearchQuery }, async ({ request, query }) => {
   const { rows, meta } = await searchListings(await optionalUser(request), query);
   return { data: rows, meta };
 });

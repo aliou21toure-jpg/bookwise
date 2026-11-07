@@ -4,7 +4,7 @@ import { optionalUser, requireUser } from "@/modules/auth";
 import { IdParams, UpdateListingBody, archiveListing, getListing, updateListing } from "@/modules/listings";
 
 /** GET /api/v1/listings/:id — published listings for everyone; drafts for members only. */
-export const GET = defineRoute({ params: IdParams }, async ({ request, params }) => {
+export const GET = defineRoute({ public: true, params: IdParams }, async ({ request, params }) => {
   return { data: await getListing(await optionalUser(request), params.id) };
 });
 

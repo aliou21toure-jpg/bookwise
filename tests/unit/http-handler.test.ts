@@ -15,7 +15,7 @@ function post(body: string, headers: Record<string, string> = {}) {
 }
 
 const echo = defineRoute(
-  { body: z.strictObject({ name: z.string().min(1) }) },
+  { public: true, body: z.strictObject({ name: z.string().min(1) }) },
   async ({ body }) => ({ data: { hello: body.name }, status: 201 }),
 );
 
@@ -62,7 +62,7 @@ describe("defineRoute", () => {
   });
 
   it("maps AppError to its status and code", async () => {
-    const route = defineRoute({}, async () => {
+    const route = defineRoute({ public: true }, async () => {
       throw new AppError("CONFLICT", "Already taken");
     });
     const res = await route(new Request(`${ORIGIN}/x`));
@@ -71,7 +71,7 @@ describe("defineRoute", () => {
   });
 
   it("hides unexpected error details behind a generic 500 with a request id", async () => {
-    const route = defineRoute({}, async () => {
+    const route = defineRoute({ public: true }, async () => {
       throw new Error("relation \"bookwise.secret_table\" does not exist");
     });
     const res = await route(new Request(`${ORIGIN}/x`));
@@ -84,7 +84,7 @@ describe("defineRoute", () => {
   });
 
   it("keeps a well-formed incoming request id and replaces a malformed one", async () => {
-    const route = defineRoute({}, async () => ({ data: null }));
+    const route = defineRoute({ public: true }, async () => ({ data: null }));
     const kept = await route(new Request(`${ORIGIN}/x`, { headers: { "x-request-id": "abc12345-trace" } }));
     expect(kept.headers.get("x-request-id")).toBe("abc12345-trace");
     const replaced = await route(new Request(`${ORIGIN}/x`, { headers: { "x-request-id": "<script>" } }));
@@ -92,10 +92,22 @@ describe("defineRoute", () => {
   });
 
   it("validates query parameters with coercion", async () => {
-    const route = defineRoute({ query: z.object({ page: z.coerce.number().int().min(1) }) }, async ({ query }) => ({
+    const route = defineRoute({ public: true, query: z.object({ page: z.coerce.number().int().min(1) }) }, async ({ query }) => ({
       data: query.page,
     }));
     expect(await (await route(new Request(`${ORIGIN}/x?page=3`))).json()).toEqual({ data: 3 });
     expect((await route(new Request(`${ORIGIN}/x?page=0`))).status).toBe(400);
+  });
+
+  it("answers 401 before parsing anything when a private route gets no session cookie", async () => {
+    let ran = false;
+    const route = defineRoute({ body: z.strictObject({ name: z.string() }) }, async () => {
+      ran = true;
+      return { data: null };
+    });
+    const res = await route(new Request(`${ORIGIN}/x`, { method: "POST", headers: { "content-type": "text/plain" }, body: "not json" }));
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe("UNAUTHENTICATED");
+    expect(ran).toBe(false);
   });
 });

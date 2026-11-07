@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ZodError, type ZodType } from "zod";
 
 import { logger, type Logger } from "@/lib/logger";
+import { RULES, RateLimitError, consume, limitHeaders, requestIdentity, type LimitGroup, type LimitState } from "@/lib/rate-limit";
 import { AppError } from "./errors";
 import { jsonResponse, type ErrorBody, type HasMoreMeta, type PageMeta } from "./response";
 
@@ -33,6 +34,17 @@ export interface RouteOptions<TBody, TQuery, TParams> {
    * Webhooks set `skipOriginCheck` instead and authenticate with a signature.
    */
   skipOriginCheck?: boolean;
+  /**
+   * Which limit applies (docs/security.md §7). Defaults: `write` for unsafe methods, `read`
+   * for GET. `false` for endpoints authenticated otherwise (signed webhooks, health checks).
+   */
+  rateLimit?: LimitGroup | false;
+  /**
+   * Routes are private by default: a request without any session cookie is answered 401
+   * before its input is even parsed, so anonymous callers cannot probe validation rules.
+   * Public routes (search, sign-in, signed webhooks) opt out here.
+   */
+  public?: boolean;
 }
 
 type RouteContextArg = { params: Promise<Record<string, string | string[]>> };
@@ -56,8 +68,12 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
     const log = logger.child({ requestId, method: request.method, path: url.pathname });
 
     let status = 500;
+    let limit: LimitState | null = null;
     try {
       if (UNSAFE_METHODS.has(request.method) && !options.skipOriginCheck) assertSameOrigin(request, url);
+      if (!options.public && !hasSessionCookie(request)) throw new AppError("UNAUTHENTICATED", "Sign in to continue.");
+      const group = options.rateLimit ?? (UNSAFE_METHODS.has(request.method) ? "write" : "read");
+      if (group) limit = await consume(RULES[group], requestIdentity(request));
 
       const body = options.body ? options.body.parse(await readJson(request)) : (undefined as TBody);
       const query = options.query
@@ -71,11 +87,14 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
       if (result instanceof Response) {
         status = result.status;
         result.headers.set("X-Request-Id", requestId);
+        for (const [k, v] of Object.entries(limitHeaders(limit))) result.headers.set(k, v);
         return result;
       }
       status = result.status ?? 200;
       const payload = result.meta ? { data: result.data, meta: result.meta } : { data: result.data };
-      return jsonResponse(payload, status, requestId, result.headers);
+      const headers = new Headers(result.headers);
+      for (const [k, v] of Object.entries(limitHeaders(limit))) headers.set(k, v);
+      return jsonResponse(payload, status, requestId, headers);
     } catch (err) {
       const appError = toAppError(err);
       status = appError.status;
@@ -89,11 +108,16 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
           ...(appError.details ? { details: appError.details } : {}),
         },
       };
-      return jsonResponse(body, status, requestId);
+      const headers = err instanceof RateLimitError ? limitHeaders(err.state, true) : limitHeaders(limit);
+      return jsonResponse(body, status, requestId, headers);
     } finally {
       log.info({ status, durationMs: Math.round(performance.now() - started) }, "request");
     }
   };
+}
+
+function hasSessionCookie(request: Request): boolean {
+  return /(?:^|;\s*)(?:__Secure-)?bookwise\.session_token=[^;]+/.test(request.headers.get("cookie") ?? "");
 }
 
 async function readJson(request: Request): Promise<unknown> {

@@ -26,6 +26,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     // Sign-up signs in immediately in E2E; integration tests cover email verification.
-    env: { APP_URL: baseURL, REQUIRE_EMAIL_VERIFICATION: "false", MAIL_TRANSPORT: "log" },
+    // Rate limits are off: every test signs up new accounts from the same address.
+    env: { APP_URL: baseURL, REQUIRE_EMAIL_VERIFICATION: "false", MAIL_TRANSPORT: "log", RATE_LIMITS: "false" },
   },
 });

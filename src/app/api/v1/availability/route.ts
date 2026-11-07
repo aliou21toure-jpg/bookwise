@@ -4,7 +4,7 @@ import { optionalUser, requireUser } from "@/modules/auth";
 import { AvailabilityQuery, CreateRuleBody, createRule, getAvailability } from "@/modules/availability";
 
 /** GET /api/v1/availability?serviceId=&from=&to= — bookable slots (max 31 days). */
-export const GET = defineRoute({ query: AvailabilityQuery }, async ({ request, query }) => {
+export const GET = defineRoute({ public: true, query: AvailabilityQuery }, async ({ request, query }) => {
   return { data: await getAvailability(await optionalUser(request), query) };
 });
 
