@@ -22,6 +22,7 @@ interface World {
   providerEmail: string;
   customerEmail: string;
   bookingIds: string[];
+  slots: string[];
 }
 
 async function seed(provider: APIRequestContext, customer: APIRequestContext, word: string): Promise<World> {
@@ -49,7 +50,7 @@ async function seed(provider: APIRequestContext, customer: APIRequestContext, wo
     await customer.post("/api/v1/bookings", { data: { bookingId: id }, headers: { "Idempotency-Key": crypto.randomUUID() } });
     bookingIds.push(id);
   }
-  return { orgId, listingId, serviceId, providerEmail, customerEmail, bookingIds };
+  return { orgId, listingId, serviceId, providerEmail, customerEmail, bookingIds, slots };
 }
 
 /** Test-only shortcuts that need the database: completing a visit and creating an admin. */
@@ -181,7 +182,8 @@ test.describe("dashboards", () => {
     await expect(page.getByText("Reason: Instructor unavailable")).toBeVisible();
 
     // Calendar shows the week's bookings; customers lists the one customer.
-    const firstSlotWeek = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date(Date.now() + 2 * 86_400_000));
+    // The week of the first booked slot, in the provider's time zone.
+    const firstSlotWeek = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date(w.slots[0]!));
     await page.goto(`${base}/calendar?week=${firstSlotWeek}`);
     await expect(page.getByRole("link", { name: /Intro session/ }).first()).toBeVisible();
     await page.goto(`${base}/customers`);
@@ -224,6 +226,10 @@ test.describe("dashboards", () => {
     await page.getByLabel("Reason (kept in the audit log)").fill("Repeated no-shows reported");
     await page.getByRole("button", { name: "Yes, suspend" }).click();
     await expect(row.getByText("Suspended")).toBeVisible();
+    // The suspended provider can no longer add listings.
+    const blocked = await provider.post("/api/v1/listings", { data: { organizationId: w.orgId, category: "service", title: "After suspension", city: "Toronto" } });
+    expect(blocked.status()).toBe(403);
+    expect((await blocked.json()).error.code).toBe("ORGANIZATION_SUSPENDED");
 
     await page.goto(`/admin/audit-logs?action=organization.suspended&organizationId=${w.orgId}`);
     await expect(page.getByText("“Repeated no-shows reported”")).toBeVisible();
