@@ -20,9 +20,12 @@ export interface Actor {
  */
 export function withActor<T>(actor: Actor, fn: (tx: Tx) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
+    // jit=off: request queries are short, and JIT compilation of row-level-security filters
+    // cost more than the queries themselves (docs/performance.md). Transaction-local too.
     await tx.execute(sql`
       select set_config('app.user_id', ${actor.userId ?? ""}, true),
-             set_config('app.role', ${actor.role}, true)`);
+             set_config('app.role', ${actor.role}, true),
+             set_config('jit', 'off', true)`);
     return fn(tx);
   });
 }

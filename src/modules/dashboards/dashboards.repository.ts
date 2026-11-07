@@ -332,7 +332,9 @@ export async function platformVolume30d(tx: Tx): Promise<{ currency: string; gro
     select currency, sum(gross) as gross, sum(refunds) as refunds from (
       select p.currency, p.amount_minor as gross, 0 as refunds
       from bookwise.payments p join bookwise.bookings b on b.id = p.booking_id
-      where p.status = 'succeeded' and coalesce(b.confirmed_at, p.updated_at) >= now() - interval '30 days'
+      -- Same rule as coalesce(confirmed_at, updated_at), written so both indexes can be used.
+      where p.status = 'succeeded'
+        and (b.confirmed_at >= now() - interval '30 days' or (b.confirmed_at is null and p.updated_at >= now() - interval '30 days'))
       union all
       select p.currency, 0, r.amount_minor
       from bookwise.refunds r join bookwise.payments p on p.id = r.payment_id
@@ -341,16 +343,20 @@ export async function platformVolume30d(tx: Tx): Promise<{ currency: string; gro
   return rows.map((r) => ({ currency: r.currency, grossMinor: n(r.gross), refundsMinor: n(r.refunds) }));
 }
 
-/** Bookings created per day over the last 14 days (UTC days). */
-export async function bookingsPerDay(tx: Tx, days: number) {
+/** Bookings created per day over the last `days` UTC days, zero-filled. One indexed range scan. */
+export async function bookingsPerDay(tx: Tx, days: number, now = new Date()) {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const since = new Date(today - (days - 1) * 86_400_000);
   const { rows } = await tx.execute<{ day: string; bookings: string }>(sql`
-    select to_char(d, 'YYYY-MM-DD') as day,
-           (select count(*) from bookwise.bookings b
-             where b.status not in ('EXPIRED', 'PENDING_PAYMENT') and b.created_at >= d and b.created_at < d + interval '1 day') as bookings
-    from generate_series(date_trunc('day', now() at time zone 'UTC') - make_interval(days => ${days - 1}),
-                         date_trunc('day', now() at time zone 'UTC'), interval '1 day') as d
-    order by d`);
-  return rows.map((r) => ({ day: r.day, bookings: n(r.bookings) }));
+    select to_char(created_at at time zone 'UTC', 'YYYY-MM-DD') as day, count(*) as bookings
+    from bookwise.bookings
+    where created_at >= ${since} and status not in ('EXPIRED', 'PENDING_PAYMENT')
+    group by 1`);
+  const counts = new Map(rows.map((r) => [r.day, n(r.bookings)]));
+  return Array.from({ length: days }, (_, i) => {
+    const day = new Date(since.getTime() + i * 86_400_000).toISOString().slice(0, 10);
+    return { day, bookings: counts.get(day) ?? 0 };
+  });
 }
 
 export async function adminOrganizations(tx: Tx, query: AdminOrganizationsQuery) {
@@ -452,6 +458,11 @@ export async function adminPayments(tx: Tx, query: AdminPaymentsQuery) {
   const filters: SQL[] = [];
   if (query.status) filters.push(sql`p.status = ${query.status}`);
   if (query.q) filters.push(sql`(b.reference ilike ${likePattern(query.q)} or p.provider_payment_id ilike ${likePattern(query.q)} or o.name ilike ${likePattern(query.q)})`);
+  const from = sql`
+    from bookwise.payments p
+    join bookwise.bookings b on b.id = p.booking_id
+    join bookwise.organizations o on o.id = p.organization_id`;
+  // The page is picked first; refund totals are then computed for its rows only.
   const { rows } = await tx.execute<{
     id: string;
     provider: string;
@@ -467,20 +478,25 @@ export async function adminPayments(tx: Tx, query: AdminPaymentsQuery) {
     refunded: string;
     refund_pending: boolean;
     created_at: Date;
-    total: string;
   }>(sql`
-    select p.id, p.provider, p.provider_payment_id, p.booking_id, b.reference, o.name as organization_name, u.email as customer_email,
-           p.amount_minor, p.currency, p.capture_method, p.status,
-           coalesce((select sum(r.amount_minor) from bookwise.refunds r where r.payment_id = p.id and r.status = 'succeeded'), 0) as refunded,
-           exists (select 1 from bookwise.refunds r where r.payment_id = p.id and r.status = 'pending') as refund_pending,
-           p.created_at, count(*) over () as total
-    from bookwise.payments p
-    join bookwise.bookings b on b.id = p.booking_id
-    join bookwise.organizations o on o.id = p.organization_id
+    with page as (
+      select p.id, p.provider, p.provider_payment_id, p.booking_id, p.organization_id, p.amount_minor, p.currency, p.capture_method, p.status, p.created_at
+      ${query.q ? from : sql`from bookwise.payments p`}
+      ${where(filters)}
+      order by p.created_at desc, p.id
+      limit ${query.pageSize} offset ${pageOffset(query)})
+    select page.*, b.reference, o.name as organization_name, u.email as customer_email,
+           coalesce((select sum(r.amount_minor) from bookwise.refunds r where r.payment_id = page.id and r.status = 'succeeded'), 0) as refunded,
+           exists (select 1 from bookwise.refunds r where r.payment_id = page.id and r.status = 'pending') as refund_pending
+    from page
+    join bookwise.bookings b on b.id = page.booking_id
+    join bookwise.organizations o on o.id = page.organization_id
     join bookwise.users u on u.id = b.customer_id
-    ${where(filters)}
-    order by p.created_at desc, p.id
-    limit ${query.pageSize} offset ${pageOffset(query)}`);
+    order by page.created_at desc, page.id`);
+  // Every payment has exactly one booking and organization, so without a text search the
+  // count needs no joins.
+  const countSql = query.q ? sql`select count(*) as total ${from} ${where(filters)}` : sql`select count(*) as total from bookwise.payments p ${where(filters)}`;
+  const [{ total } = { total: 0 }] = (await tx.execute<{ total: string }>(countSql)).rows.map((r) => ({ total: n(r.total) }));
   return {
     rows: rows.map((r) => ({
       id: r.id,
@@ -498,7 +514,7 @@ export async function adminPayments(tx: Tx, query: AdminPaymentsQuery) {
       refundPending: r.refund_pending,
       createdAt: new Date(r.created_at),
     })),
-    total: n(rows[0]?.total),
+    total,
   };
 }
 
