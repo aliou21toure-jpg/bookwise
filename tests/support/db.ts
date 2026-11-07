@@ -27,7 +27,7 @@ export async function ownerQuery<T extends pg.QueryResultRow = pg.QueryResultRow
 /** Test cleanup runs as the schema owner: the app role deliberately has no TRUNCATE right. */
 export async function truncateAuthTables(): Promise<void> {
   await ownerQuery(
-    `TRUNCATE bookwise.reviews, bookwise.saved_listings, bookwise.refunds, bookwise.payment_events, bookwise.payments,
+    `TRUNCATE bookwise.notifications, bookwise.reviews, bookwise.saved_listings, bookwise.refunds, bookwise.payment_events, bookwise.payments,
               bookwise.idempotency_keys, bookwise.booking_holds, bookwise.booking_items, bookwise.bookings,
               bookwise.availability_slots, bookwise.unavailable_periods, bookwise.availability_rules,
               bookwise.listing_images, bookwise.services, bookwise.listings, bookwise.audit_logs, bookwise.provider_profiles, bookwise.organization_members,
