@@ -138,6 +138,19 @@ the meantime is refunded automatically and the event is flagged.
 - Dashboard filters are plain GET forms that never carry secrets; every write goes through the
   JSON API with the usual origin check. Audit-log filters accept a strict action pattern only.
 
+
+### Email (Phase 8, as built)
+
+- Booking emails go through a transactional outbox (`notifications`), written in the same
+  transaction as the booking change and readable only by administrators and the system
+  context (FORCE RLS; the app role cannot delete rows).
+- Content is captured when the event happens, and every value from users (names, service
+  titles, cancellation reasons) is HTML-escaped in the HTML part.
+- Logs record the email kind and delivery status, never the recipient's message body (which
+  can contain single-use links) or Resend's error body.
+- Resend is called with the notification id as `Idempotency-Key`, so a retry after a crash is
+  delivered once.
+
 ## 6. File uploads (listing images)
 
 1. Client requests an upload; the server checks the user is a member of the listing's

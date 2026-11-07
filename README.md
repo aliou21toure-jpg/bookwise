@@ -5,7 +5,7 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phases 1–7 and 9 of 10 built (dashboards, security hardening).** Payments run against a local payment
+> **Status: Phases 1–9 of 10 built.** Emails run against a local mailbox until a Resend account is added (see "Switching to Resend" below). Payments run against a local payment
 > simulator that signs its webhooks exactly like Stripe; one real Stripe test-mode payment is
 > still to be run once test keys are added (see "Switching to Stripe" below).
 > Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
@@ -48,6 +48,12 @@ automated test suite.
   view has loading, empty and error states and is tested at 360, 768 and 1280 px.
 - Customers review completed bookings (one each, enforced in the database) and save listings.
   Administrators can hide a review with a reason; hidden reviews leave public ratings.
+- **Emails that are never lost or doubled.** Confirmations, approval requests, declines,
+  cancellations, refunds, late-payment notices and 24-hour reminders are written to an
+  outbox table in the same transaction as the booking change. The worker delivers them with
+  retries and backoff; a unique key per event means an email is queued once, and the row id
+  is the email provider's idempotency key, so a worker that crashes mid-send never delivers
+  twice. Failed emails surface on the admin dashboard.
 - **Hardened:** rate limits on every endpoint (stricter for sign-in, holds and payments),
   routes private by default, Content-Security-Policy and security headers on every page, and a
   [performance pass](docs/performance.md) that made the slowest dashboard queries up to 200×
@@ -140,6 +146,16 @@ anything but a local URL. To use Stripe in test mode:
    and set `STRIPE_WEBHOOK_SECRET` to the `whsec_…` it prints (in production, create an
    endpoint for the same path in the Stripe dashboard).
 3. Pay with the test card `4242 4242 4242 4242`, any future date and any CVC.
+
+## Switching to Resend
+
+Emails default to Mailpit locally (`MAIL_TRANSPORT=mailpit`, inbox at http://localhost:8025).
+To send real email:
+
+1. In Resend, add a sending domain (for example `mail.example.com`) and create the DNS
+   records it lists (SPF, DKIM and, recommended, DMARC).
+2. Set `MAIL_TRANSPORT=resend`, `RESEND_API_KEY=re_…` and `MAIL_FROM="BookWise <bookings@mail.example.com>"`.
+3. Run the worker (`npm run worker:dev`); it delivers the outbox every 10 seconds.
 
 ## Checks
 
