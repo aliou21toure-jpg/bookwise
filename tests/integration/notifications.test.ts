@@ -64,7 +64,8 @@ describe("notification outbox", () => {
     const bookingId = await confirmFree(customer, serviceId, slots[0]!);
     expect(await dispatchNotifications()).toMatchObject({ sent: 2 });
     expect(await dispatchNotifications()).toMatchObject({ sent: 0 });
-    const mail = bookingMail();
+    // Both rows come from one transaction (same created_at), so delivery order is not fixed.
+    const mail = [...bookingMail()].sort((a, b) => a.kind.localeCompare(b.kind));
     expect(mail.map((m) => [m.kind, m.to])).toEqual([
       ["booking-confirmed", "ana@example.com"],
       ["provider-new-booking", "owner@example.com"],
