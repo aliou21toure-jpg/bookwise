@@ -5,7 +5,7 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phase 7 of 10 built (dashboards).** Payments run against a local payment
+> **Status: Phases 1–7 and 9 of 10 built (dashboards, security hardening).** Payments run against a local payment
 > simulator that signs its webhooks exactly like Stripe; one real Stripe test-mode payment is
 > still to be run once test keys are added (see "Switching to Stripe" below).
 > Booking features arrive phase by phase; see the [roadmap](docs/roadmap.md).
@@ -48,6 +48,10 @@ automated test suite.
   view has loading, empty and error states and is tested at 360, 768 and 1280 px.
 - Customers review completed bookings (one each, enforced in the database) and save listings.
   Administrators can hide a review with a reason; hidden reviews leave public ratings.
+- **Hardened:** rate limits on every endpoint (stricter for sign-in, holds and payments),
+  routes private by default, Content-Security-Policy and security headers on every page, and a
+  [performance pass](docs/performance.md) that made the slowest dashboard queries up to 200×
+  faster at 120,000 bookings.
 - PostgreSQL row-level security and guard triggers repeat every rule, so the database still
   protects tenants if application code forgets a check.
 

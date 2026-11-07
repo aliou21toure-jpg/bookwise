@@ -83,7 +83,7 @@ assignment fails with `400`.
 | Threat | Control |
 |---|---|
 | CSRF | Session cookie is `SameSite=Lax`; all state-changing API routes accept JSON only and verify the `Origin` header against the app origin (Better Auth applies the same check to its own routes). The Stripe webhook is exempt and is authenticated by its signature instead. |
-| XSS | React escaping by default; no `dangerouslySetInnerHTML` (lint rule); review and listing text stored as plain text; strict Content-Security-Policy with per-request nonces (`script-src 'self' 'nonce-…' https://js.stripe.com`; `frame-src https://js.stripe.com`) |
+| XSS | React escaping by default; no `dangerouslySetInnerHTML` (lint rule); review and listing text stored as plain text; Content-Security-Policy on every response: scripts only from this origin and `https://js.stripe.com`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-src` Stripe only. **As built:** `script-src` keeps `'unsafe-inline'` because partially prerendered pages ship inline bootstrap scripts in a static shell built once, which cannot carry a per-request nonce; everything else is locked down and no user content is ever rendered as HTML. |
 | SQL injection | Drizzle query builder; raw SQL only through the `sql` tagged template, which parameterizes values; lint rule forbids `sql.raw` outside migrations |
 | Clickjacking | `frame-ancestors 'none'` |
 | Other headers | HSTS (2 years, preload), `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` denying camera, microphone and geolocation |
@@ -174,6 +174,18 @@ log warning.
 | Everything else authenticated | 60 per minute per user |
 
 Responses include `RateLimit` headers and `429` with `Retry-After`.
+
+**As built (Phase 9):** `src/lib/rate-limit.ts`, a sliding window per key in a Redis sorted
+set, updated in one `MULTI`. Every API route is limited by default (`write` for unsafe methods,
+`read` for GET); routes opt into a stricter group or out (`rateLimit: false` for the signed
+webhook and the health check). "Per user" is per session: the key is a hash of the session
+cookie, so no database lookup happens before the limit. Better Auth's own `/api/auth/*`
+endpoints share the sign-in limit. Limits are switched off only for end-to-end runs
+(`RATE_LIMITS=false`), which create many accounts from one address.
+
+Routes are also **private by default**: a request to any route not marked `public` that
+carries no session cookie gets `401` before its input is parsed, so anonymous callers cannot
+probe validation rules. A test walks every route file and checks this.
 
 ---
 
