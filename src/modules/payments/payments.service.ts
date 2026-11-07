@@ -48,6 +48,10 @@ export async function createIntent(ctx: AuthContext, bookingId: string, idempote
       throw new AppError("INVALID_TRANSITION", "This hold has expired. Choose the time again.");
     }
     const svc = (await elevated(tx, () => bookingContexts(tx, [booking.serviceId]))).get(booking.serviceId)!;
+    // Two simultaneous calls for one booking (double click, two tabs) queue here, so the
+    // second finds the first one's payment instead of racing it to the unique index.
+    // Locked as `system`: under RLS, FOR UPDATE would apply the customer's UPDATE policy.
+    await elevated(tx, () => findBooking(tx, booking.id, { forUpdate: true }));
 
     const dto = await elevated(tx, async () => {
       let payment = await repo.findPaymentForBooking(tx, booking.id);
