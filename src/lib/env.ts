@@ -19,8 +19,9 @@ export const ServerEnvSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   REQUIRE_EMAIL_VERIFICATION: bool.default(true),
   // memory: kept in-process (tests); log: written to the log (no delivery);
-  // mailpit: delivered to a local Mailpit inbox over its HTTP API. Resend arrives in Phase 8.
-  MAIL_TRANSPORT: z.enum(["memory", "log", "mailpit"]).default("log"),
+  // mailpit: delivered to a local Mailpit inbox over its HTTP API; resend: the Resend API.
+  MAIL_TRANSPORT: z.enum(["memory", "log", "mailpit", "resend"]).default("log"),
+  RESEND_API_KEY: z.string().startsWith("re_", "RESEND_API_KEY starts with re_").optional(),
   MAILPIT_URL: z.url().default("http://localhost:8025"),
   // Uploaded images (local driver). Object storage (Vercel Blob) is wired in Phase 10.
   UPLOADS_DIR: z.string().min(1).default(".data/uploads"),
@@ -42,6 +43,9 @@ export const ServerEnvSchema = z.object({
     for (const key of ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] as const) {
       if (!v[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required when PAYMENT_PROVIDER=stripe` });
     }
+  }
+  if (v.MAIL_TRANSPORT === "resend" && !v.RESEND_API_KEY) {
+    ctx.addIssue({ code: "custom", path: ["RESEND_API_KEY"], message: "RESEND_API_KEY is required when MAIL_TRANSPORT=resend" });
   }
   if (v.PAYMENT_PROVIDER === "fake" && !isLocalUrl(v.APP_URL)) {
     ctx.addIssue({ code: "custom", path: ["PAYMENT_PROVIDER"], message: "Simulated payments only run on localhost; set PAYMENT_PROVIDER=stripe" });
