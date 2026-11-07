@@ -92,6 +92,20 @@
       "when": 1794022292481,
       "tag": "0012_rls_performance",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794073262348,
+      "tag": "0013_notification_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794073263160,
+      "tag": "0014_notification_rls",
+      "breakpoints": true
     }
   ]
 }
