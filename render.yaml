@@ -62,6 +62,14 @@ services:
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
         sync: false
+      - key: SENTRY_DSN
+        sync: false # server errors
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false # browser errors; same DSN, read at build time
+      - key: SENTRY_ORG
+        sync: false # optional, for source map upload
+      - key: SENTRY_PROJECT
+        sync: false # optional, for source map upload
       - key: DATABASE_MIGRATION_URL
         fromDatabase:
           name: bookwise-db
@@ -100,6 +108,8 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: SENTRY_DSN
         sync: false
       - key: BOOKWISE_SERVICE
         value: worker

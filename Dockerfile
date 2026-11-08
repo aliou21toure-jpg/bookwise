@@ -13,7 +13,16 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build && npm run build:worker
+# Browser error reporting is configured at build time (the DSN is public). Source maps are
+# uploaded to Sentry only when a `sentry_auth_token` secret is mounted; a secret mount, unlike
+# a build arg, is never stored in the image.
+ARG NEXT_PUBLIC_SENTRY_DSN=""
+ARG SENTRY_ORG=""
+ARG SENTRY_PROJECT=""
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN SENTRY_ORG=$SENTRY_ORG SENTRY_PROJECT=$SENTRY_PROJECT
+RUN --mount=type=secret,id=sentry_auth_token \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
+    npm run build && npm run build:worker
 
 # Production dependencies only, for the worker and migration script.
 FROM node:22-bookworm-slim AS prod-deps

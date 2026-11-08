@@ -67,6 +67,8 @@ automated test suite.
   routes private by default, Content-Security-Policy and security headers on every page, and a
   [performance pass](docs/performance.md) that made the slowest dashboard queries up to 200×
   faster at 120,000 bookings.
+- **Error reporting ready for Sentry:** unexpected server, worker and browser errors are
+  reported with the request id and no personal data, once a DSN is configured.
 - PostgreSQL row-level security and guard triggers repeat every rule, so the database still
   protects tenants if application code forgets a check.
 

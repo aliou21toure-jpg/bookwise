@@ -220,8 +220,12 @@ probe validation rules. A test walks every route file and checks this.
 **Structured logs** (pino, JSON): request id, route, status, duration, user id, and
 organization id. Never passwords, tokens, cookies, card data, full emails, or request bodies.
 
-**Sentry**: `sendDefaultPii: false`; a `beforeSend` hook removes cookies, authorization
-headers and email addresses.
+**Sentry** (optional, on when a DSN is set): `sendDefaultPii: false`; a `beforeSend` hook
+removes cookies, request bodies, query strings, authorization, Stripe-signature and forwarded-IP
+headers, and every user field except the id (`src/lib/monitoring.ts`, covered by
+`tests/integration/monitoring.test.ts`). Only unexpected (5xx) errors are reported; the
+caller still receives a generic message and the request id. Browser events go through the
+app's `/monitoring` route, so the CSP allows no third-party connection for them.
 
 **Audit log events** (append-only table):
 

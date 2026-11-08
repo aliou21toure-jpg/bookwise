@@ -37,6 +37,8 @@ export const ServerEnvSchema = z.object({
     .regex(/^(sk|rk)_test_[A-Za-z0-9]+$/, "Use a Stripe test-mode key (sk_test_… or rk_test_…)")
     .optional(),
   STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_", "STRIPE_WEBHOOK_SECRET starts with whsec_").optional(),
+  // Error reporting (optional): server and worker; the browser DSN is read at build time.
+  SENTRY_DSN: z.url().optional(),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().regex(/^pk_test_[A-Za-z0-9]+$/, "Use a Stripe test-mode publishable key (pk_test_…)").optional(),
 }).superRefine((v, ctx) => {
   if (v.PAYMENT_PROVIDER === "stripe") {

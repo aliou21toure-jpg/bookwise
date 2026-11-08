@@ -41,7 +41,8 @@ export function ListingCard({ listing }: { listing: ListingCardProps }) {
         <p className="mt-auto pt-2 text-sm">
           {listing.fromPrice ? (
             <>
-              From <strong>{formatMoney(listing.fromPrice.amountMinor, listing.fromPrice.currency)}</strong>
+              {/* The cheapest service; others on the listing may cost more. */}
+              From <strong>{listing.fromPrice.amountMinor === 0 ? "free" : formatMoney(listing.fromPrice.amountMinor, listing.fromPrice.currency)}</strong>
             </>
           ) : (
             <span className="text-muted-foreground">Price on request</span>

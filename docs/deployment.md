@@ -17,6 +17,7 @@ Any host that runs containers and offers PostgreSQL 15+ and Redis works. This gu
 | Images | Persistent disk on the web service (`/app/data/uploads`) | Single instance; see "Scaling" for object storage |
 | Email | Resend | Domain verified with SPF and DKIM |
 | Payments | Stripe, test mode | Live keys are refused at start-up |
+| Errors | Sentry | Optional; nothing is reported without a DSN |
 
 ## 2. Accounts and secrets
 
@@ -27,7 +28,9 @@ Create, in this order:
 2. **Resend**: add a sending domain, create the DNS records it shows, wait for "Verified",
    create an API key with "Sending access" only.
 3. **Stripe**: stay in test mode. Copy the publishable and secret test keys.
-4. **Render**: connect the GitHub repository.
+4. **Sentry** (optional): create a Next.js project and copy its DSN. For readable stack traces,
+   also create an auth token with the `project:releases` scope.
+5. **Render**: connect the GitHub repository.
 
 Secrets are only ever typed into the Render dashboard (or the Blueprint prompt). Nothing secret
 is committed: `render.yaml` marks each one `sync: false`, and `.env*` files are git-ignored.
@@ -142,7 +145,16 @@ After any restore, check `/admin` for payments to review and failed emails.
 - **Logs:** JSON on stdout (pino) with a `requestId` per request, which every error response
   also returns, so a user's report leads straight to the log line. Render keeps them for the
   plan's window; ship them to a log service for longer.
-- **Errors:** Sentry (to be wired once the project exists).
+- **Errors:** Sentry, when `SENTRY_DSN` (web and worker) and `NEXT_PUBLIC_SENTRY_DSN` (web,
+  read at build time) are set. Reported: unexpected API errors (tagged with the request id
+  and the route, ids replaced by `:id`), server rendering errors, failed background jobs,
+  capacity drift, and browser errors. Not reported: expected errors such as 404s,
+  validation failures and refused permissions. Events carry no cookies, request bodies,
+  query strings, IP addresses or emails (`src/lib/monitoring.ts`). Browser events go through
+  the app's own `/monitoring` route, so the Content-Security-Policy stays first-party; this
+  works with Sentry's hosted service (`*.ingest.sentry.io` DSNs). For source maps, add a
+  Render secret file named `sentry_auth_token` and set `SENTRY_ORG` and `SENTRY_PROJECT`; the
+  Docker build reads the token through a secret mount, so it never lands in the image.
 - **Business signals** on the admin overview: refunds pending or failed, flagged webhook
   events, failed emails.
 

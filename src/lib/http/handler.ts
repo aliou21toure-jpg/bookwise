@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ZodError, type ZodType } from "zod";
 
 import { logger, type Logger } from "@/lib/logger";
+import { reportError } from "@/lib/monitoring";
 import { RULES, RateLimitError, consume, limitHeaders, requestIdentity, type LimitGroup, type LimitState } from "@/lib/rate-limit";
 import { AppError } from "./errors";
 import { jsonResponse, type ErrorBody, type HasMoreMeta, type PageMeta } from "./response";
@@ -98,7 +99,10 @@ export function defineRoute<TResult, TBody = undefined, TQuery = undefined, TPar
     } catch (err) {
       const appError = toAppError(err);
       status = appError.status;
-      if (status >= 500) log.error({ err }, "unhandled error");
+      if (status >= 500) {
+        log.error({ err }, "unhandled error");
+        reportError(err, { requestId, route: `${request.method} ${url.pathname.replace(/[0-9a-f-]{36}/g, ":id")}` });
+      }
       else if (pgErrorCode(err) === "42501") log.warn({ err }, "database refused a change (RLS or guard trigger)");
       const body: ErrorBody = {
         error: {

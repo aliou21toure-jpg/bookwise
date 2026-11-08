@@ -62,8 +62,8 @@ export default async function CalendarPage({ params, searchParams }: PageProps<"
             return (
               <li key={day.date} aria-label={formatWeekday(day.from, tz)} className={cn("grid min-h-24 content-start gap-2 rounded-xl border bg-card p-3", isToday && "border-primary")}>
                 <p className={cn("text-sm font-semibold", isToday && "text-primary")}>
-                  {formatWeekday(day.from, tz)}
-                  {isToday && <span className="ml-1 text-xs font-normal">(today)</span>}
+                  <span className="whitespace-nowrap">{formatWeekday(day.from, tz)}</span>
+                  {isToday && <span className="block text-xs font-normal">Today</span>}
                 </p>
                 {closed.map((c) => (
                   <p key={c.id} className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
