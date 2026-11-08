@@ -110,6 +110,9 @@ test.describe("dashboards", () => {
   test.skip(({ isMobile }) => isMobile, "covered by the explicit 360 px pass");
 
   test("customer: overview, bookings, saved listings, reviews, profile and settings", async ({ page, playwright, baseURL }) => {
+    // A whole role journey: about ten pages, each checked at three widths. 25 s locally, so
+    // the default 30 s left no room on a busy CI runner.
+    test.slow();
     const word = tag();
     const provider = await playwright.request.newContext({ baseURL });
     const w = await seed(provider, page.request, word);
@@ -161,6 +164,9 @@ test.describe("dashboards", () => {
   });
 
   test("provider: overview, reservations, calendar, catalogue, customers, revenue and settings", async ({ page, playwright, baseURL }) => {
+    // A whole role journey: about ten pages, each checked at three widths. 25 s locally, so
+    // the default 30 s left no room on a busy CI runner.
+    test.slow();
     const word = tag();
     const customer = await playwright.request.newContext({ baseURL });
     const w = await seed(page.request, customer, word);
@@ -211,6 +217,9 @@ test.describe("dashboards", () => {
   });
 
   test("admin: overview, users, providers, listings, reservations, payments and audit log", async ({ page, playwright, baseURL }) => {
+    // A whole role journey: about ten pages, each checked at three widths. 25 s locally, so
+    // the default 30 s left no room on a busy CI runner.
+    test.slow();
     const word = tag();
     const provider = await playwright.request.newContext({ baseURL });
     const customer = await playwright.request.newContext({ baseURL });
