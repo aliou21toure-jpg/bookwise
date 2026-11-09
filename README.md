@@ -5,10 +5,11 @@ production-grade full-stack engineering: a booking engine that cannot oversell, 
 idempotent payments, tenant isolation enforced by PostgreSQL row-level security, and a full
 automated test suite.
 
-> **Status: Phases 1–9 of 10 built; Phase 10 (production) in progress.** Everything runs
-> locally today. Emails go to a local mailbox and payments to a local simulator that signs its
-> webhooks exactly like Stripe; switching to Resend and Stripe test mode is configuration only
-> (see below). Deployment is described in [docs/deployment.md](docs/deployment.md).
+> **Status: complete (all 10 phases).** BookWise is a portfolio project: it runs fully on a
+> laptop in demo mode, with a local payment simulator that signs its webhooks exactly like
+> Stripe, a local mailbox for emails, and seeded demo data (`npm run seed:demo`). Going live
+> with real Stripe test payments, Resend email and Sentry is configuration only; the steps are
+> in [docs/deployment.md](docs/deployment.md).
 
 ![Booking a time: pick a slot, it is held for 10 minutes, confirm](docs/images/booking-flow.gif)
 

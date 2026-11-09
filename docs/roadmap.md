@@ -1,6 +1,6 @@
 # BookWise — Implementation roadmap
 
-Status: Phase 1 approved 2026-11-04 (ADR-005: Render/Railway worker; ADR-008: `AWAITING_APPROVAL` state). Phases 2 to 5 complete; Phase 6 built against the payment simulator, with the real Stripe test-mode payment pending test keys. Phases 7 to 9 complete; Phase 8 built against a local mailbox, real delivery through Resend pending an account. Phase 10 in progress: API reference, demo data, deployment blueprint and backup/recovery guide done; the live deployment, Sentry and the real Stripe and Resend runs wait for the accounts. Each phase ends with a short report: what was built, files
+Status: Phase 1 approved 2026-11-04 (ADR-005: Render/Railway worker; ADR-008: `AWAITING_APPROVAL` state). Phases 2 to 5 complete; Phase 6 built against the payment simulator, with the real Stripe test-mode payment pending test keys. Phases 7 to 9 complete; Phase 8 built against a local mailbox, real delivery through Resend pending an account. Phase 10 complete as a portfolio release: API reference, demo data, deployment blueprint, backup and recovery guide, and Sentry error reporting are built and tested. A public deployment with real Stripe, Resend and Sentry accounts was deliberately left out (demo project); it needs configuration only, no code (see deployment.md). Each phase ends with a short report: what was built, files
 changed, decisions, tests run with **real** results, remaining issues, security notes, and the
 next phase. A phase does not start while a critical requirement of the previous one fails.
 
